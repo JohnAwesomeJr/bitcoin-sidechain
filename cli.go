@@ -6,7 +6,7 @@ import (
 	"log"
 )
 
-func main() {
+func cli() {
 	// Define command-line flags
 	generateKeysFlag := flag.Bool("generate-keys", false, "Generate a new public/private key pair")
 	signMessageFlag := flag.String("sign", "", "Sign a message")

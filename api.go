@@ -8,7 +8,6 @@ import (
 func main() {
 	http.HandleFunc("/", rootHandler)
 	http.HandleFunc("/hello", helloHandler)
-	http.HandleFunc("/greet", greetHandler) // New endpoint
 
 	if err := http.ListenAndServe(":80", nil); err != nil {
 		panic(err)
@@ -16,26 +15,22 @@ func main() {
 }
 
 func rootHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	response := map[string]string{"ip": "192.168.1.1"}
-	json.NewEncoder(w).Encode(response)
+	// Open the index.html file and serve it
+	http.ServeFile(w, r, "index.html")
 }
 
 func helloHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	response := map[string]string{"message": "hello, world"}
-	json.NewEncoder(w).Encode(response)
-}
+	// Get the name parameter from the form
+	name := r.FormValue("name")
 
-// New handler for greeting with a query parameter
-func greetHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	name := r.URL.Query().Get("name") // Get the 'name' query parameter
-
-	if name == "" {
-		name = "stranger" // Default value if 'name' is not provided
+	// Prepare the JSON response
+	response := map[string]string{
+		"test":                                  "true",
+		"name":                                  name,
+		"this is the template for json returns": "true",
 	}
 
-	response := map[string]string{"greeting": "Hello, " + name + "!"}
+	// Set the Content-Type header to JSON before writing to ResponseWriter
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
