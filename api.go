@@ -4,15 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"path/filepath"
-	"github.com/joho/godotenv"
-	"log"
 )
 
 func main() {
-	err := godotenv.Load()
-    if err != nil {
-        log.Fatalf("Error loading .env file")
-    }
 
 	http.HandleFunc("/", rootHandler)
 	http.HandleFunc("/hello", helloHandler)
