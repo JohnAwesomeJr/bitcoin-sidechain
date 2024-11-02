@@ -25,7 +25,7 @@ func helloHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Prepare the JSON response
 	response := map[string]string{
-		"test":                                  "true",
+		"test":                                  "false",
 		"name":                                  name,
 		"this is the template for json returns": "true",
 	}
