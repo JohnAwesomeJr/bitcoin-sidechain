@@ -3,9 +3,17 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"path/filepath"
+	"github.com/joho/godotenv"
+	"log"
 )
 
 func main() {
+	err := godotenv.Load()
+    if err != nil {
+        log.Fatalf("Error loading .env file")
+    }
+
 	http.HandleFunc("/", rootHandler)
 	http.HandleFunc("/hello", helloHandler)
 	http.HandleFunc("/hashData", hashDatabase)
@@ -37,7 +45,8 @@ func helloHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func hashDatabase(w http.ResponseWriter, r *http.Request) {
-	hash := computeDatabaseHash("./nodeList1.db")
+	dbFilename := filepath.Join(".", "nodeList1.db")
+	hash := computeDatabaseHash(dbFilename)
 	response := map[string]string{"hash": hash}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
