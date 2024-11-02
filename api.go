@@ -8,6 +8,7 @@ import (
 func main() {
 	http.HandleFunc("/", rootHandler)
 	http.HandleFunc("/hello", helloHandler)
+	http.HandleFunc("/hashData", hashDatabase)
 
 	if err := http.ListenAndServe(":80", nil); err != nil {
 		panic(err)
@@ -31,6 +32,13 @@ func helloHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Set the Content-Type header to JSON before writing to ResponseWriter
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+func hashDatabase(w http.ResponseWriter, r *http.Request) {
+	hash := computeDatabaseHash("./nodeList1.db")
+	response := map[string]string{"hash": hash}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
