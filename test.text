@@ -10,3 +10,5 @@ Content-Type: application/json
     "nonce": "2"
   }
 }
+
+GET http://localhost/bem

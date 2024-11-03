@@ -16,6 +16,7 @@ func main() {
 	http.HandleFunc("/transaction", transaction)
 	http.HandleFunc("/keygen", KeyGenApi)
 	http.HandleFunc("/verifysignature", VerifySignature)
+	http.HandleFunc("/bem", bemTest)
 
 	if err := http.ListenAndServe(":80", nil); err != nil {
 		panic(err)
@@ -142,4 +143,13 @@ func transaction(w http.ResponseWriter, r *http.Request) {
 	response := map[string]string{"from": req.From, "to": req.To}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
+}
+
+func bemTest(w http.ResponseWriter, r *http.Request) {
+	bemFile := "public_key.pem"
+	binaryData, _ := cryptoUtils.ImportPEMFile(bemFile)
+	binaryTobase58 := cryptoUtils.BinaryToBase58Check(binaryData)
+	Base58CheckToBinary, _ := cryptoUtils.Base58CheckToBinary(binaryTobase58)
+	binarytopem, _ := cryptoUtils.BinaryToPEM(Base58CheckToBinary)
+	fmt.Println(binarytopem)
 }
