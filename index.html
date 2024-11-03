@@ -3,16 +3,63 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Test Form</title>
+    <title>Sign Data</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/forge/0.10.0/forge.min.js"></script>
 </head>
 <body>
-    <h1>Test Form</h1>
-    <form action="http://localhost:80/hello" method="POST">
-        <label for="name">Name:</label>
-        <input type="text" id="name" name="name">
-        <br><br>
-        <button type="submit">Submit</button>
-    </form>
+    <input type="file" id="keyFile" accept=".pem" />
+    <textarea id="dataToSign" placeholder="Enter JSON data to sign"></textarea>
+    <button id="signButton">Sign</button>
+    <pre id="signatureOutput"></pre>
+
+    <script>
+        document.getElementById('signButton').addEventListener('click', async () => {
+            const fileInput = document.getElementById('keyFile');
+            const jsonData = document.getElementById('dataToSign').value;
+
+            if (!fileInput.files.length || !jsonData) {
+                alert('Please select a key file and enter data to sign.');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const keyPem = await file.text();
+
+            try {
+                // Process and sign the JSON data
+                const signature = signData(keyPem, jsonData);
+                document.getElementById('signatureOutput').textContent = signature;
+            } catch (error) {
+                alert('Error signing data: ' + error.message);
+            }
+        });
+
+        function signData(keyPem, jsonData) {
+            // Parse JSON and sort it
+            const parsedData = JSON.parse(jsonData);
+            const sortedData = sortObject(parsedData);
+            const jsonString = JSON.stringify(sortedData); // Convert back to JSON string without whitespace
+
+            // Convert PEM to private key object
+            const privateKey = forge.pki.privateKeyFromPem(keyPem);
+
+            // Create a signature
+            const md = forge.md.sha256.create();
+            md.update(jsonString, 'utf8');
+
+            const signature = privateKey.sign(md);
+            // Convert to base64 for display
+            return forge.util.encode64(signature);
+        }
+
+        function sortObject(obj) {
+            // Sort the object properties alphabetically
+            return Object.keys(obj).sort().reduce((sorted, key) => {
+                sorted[key] = (typeof obj[key] === 'object' && !Array.isArray(obj[key])) ?
+                    sortObject(obj[key]) : obj[key];
+                return sorted;
+            }, {});
+        }
+    </script>
 </body>
 </html>
-
