@@ -7,15 +7,17 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
-	"fmt"
 	"os"
 	"sort"
 	"strings"
 
 	"github.com/btcsuite/btcd/btcec/v2"
+
+	"fmt"
 )
 
 func KeyGenRSAOLDSTYLE() {
@@ -76,7 +78,7 @@ func KeyGenRSAOLDSTYLE() {
 
 	fmt.Println("Public key saved to public_key.pem")
 }
-func KeyGen() {
+func KeyGenOldECStyle() {
 	// Generate a secp256k1 key pair
 	privateKey, err := btcec.NewPrivateKey()
 	if err != nil {
@@ -125,6 +127,29 @@ func KeyGen() {
 	}
 
 	fmt.Println("Public key saved to public_key.pem")
+}
+
+func KeyGen() {
+	// Generate a new private key
+	privateKey, err := btcec.NewPrivateKey()
+	if err != nil {
+		fmt.Println("Error generating private key:", err)
+		return
+	}
+
+	// Get the public key from the private key
+	publicKey := privateKey.PubKey()
+
+	// Convert private key to bytes
+	privateKeyBytes := privateKey.Serialize()
+
+	// Convert public key to bytes (uncompressed format)
+	pubKeyBytes := publicKey.SerializeUncompressed()
+
+	// Print the keys in hexadecimal format
+	fmt.Printf("Private Key: %s\n", hex.EncodeToString(privateKeyBytes))
+	fmt.Printf("Public Key: %s\n", hex.EncodeToString(pubKeyBytes))
+
 }
 
 func FormatPEMPublicKey(key string) string {

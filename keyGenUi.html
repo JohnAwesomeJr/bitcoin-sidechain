@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mnemonic Seed Generator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script src="https://unpkg.com/bip39@3.0.2/index.js"></script>
+    <script src="https://unpkg.com/bip32@2.0.5/index.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        input,
+        button {
+            margin: 10px 0;
+            padding: 10px;
+            width: 300px;
+        }
+
+        #result {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Mnemonic Seed Phrase Generator</h1>
+    <button id="generate">Generate Mnemonic Seed Phrase</button>
+
+    <div id="result">
+        <h2>Your Mnemonic Seed Phrase:</h2>
+        <textarea id="mnemonic" rows="3" readonly></textarea>
+
+        <h2>Your Private Key:</h2>
+        <input type="text" id="privateKey" readonly>
+
+        <h2>Your Public Key:</h2>
+        <input type="text" id="publicKey" readonly>
+    </div>
+
+    <script>
+        document.getElementById('generate').addEventListener('click', function () {
+            // Generate mnemonic
+            const mnemonic = bip39.generateMnemonic();
+            document.getElementById('mnemonic').value = mnemonic;
+
+            // Convert mnemonic to seed
+            const seed = bip39.mnemonicToSeedSync(mnemonic);
+
+            // Derive key pair (e.g., for Bitcoin)
+            const root = bip32.fromSeed(seed);
+            const child = root.derivePath("m/44'/0'/0'/0/0"); // Standard path for Bitcoin
+
+            // Get private and public keys
+            const privateKey = child.privateKey.toString('hex');
+            const publicKey = child.publicKey.toString('hex');
+
+            // Display keys
+            document.getElementById('privateKey').value = privateKey;
+            document.getElementById('publicKey').value = publicKey;
+        });
+    </script>
+
+</body>
+
+</html>

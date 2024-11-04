@@ -1,11 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign Data</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/forge/0.10.0/forge.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/elliptic/6.5.4/elliptic.min.js"></script>
 </head>
+
 <body>
     <input type="file" id="keyFile" accept=".pem" />
     <textarea id="dataToSign" placeholder="Enter JSON data to sign"></textarea>
@@ -38,18 +41,19 @@
             // Parse JSON and sort it
             const parsedData = JSON.parse(jsonData);
             const sortedData = sortObject(parsedData);
-            const jsonString = JSON.stringify(sortedData); // Convert back to JSON string without whitespace
+            const jsonString = JSON.stringify(sortedData); // Convert back to JSON string
 
-            // Convert PEM to private key object
-            const privateKey = forge.pki.privateKeyFromPem(keyPem);
+            // Create a secp256k1 ECDSA key from the private key
+            const ec = new elliptic.ec('secp256k1');
+            const privateKey = ec.keyFromPrivate(keyPem.replace(/-----BEGIN EC PRIVATE KEY-----|-----END EC PRIVATE KEY-----|\n/g, ''), 'base64');
 
-            // Create a signature
-            const md = forge.md.sha256.create();
-            md.update(jsonString, 'utf8');
+            // Sign the message
+            const msgHash = forge.md.sha256.create().update(jsonString).digest().toHex();
+            const signature = privateKey.sign(msgHash);
 
-            const signature = privateKey.sign(md);
-            // Convert to base64 for display
-            return forge.util.encode64(signature);
+            // Convert the signature to DER format and then to base64
+            const derSignature = signature.toDER('hex');
+            return forge.util.encode64(forge.util.hexToBytes(derSignature));
         }
 
         function sortObject(obj) {
@@ -62,4 +66,5 @@
         }
     </script>
 </body>
+
 </html>

@@ -11,6 +11,8 @@ import (
 func main() {
 
 	http.HandleFunc("/", rootHandler)
+
+	http.HandleFunc("/keyGenUi", keyGenUi)
 	http.HandleFunc("/hello", helloHandler)
 	http.HandleFunc("/hashData", hashDatabase)
 	http.HandleFunc("/transaction", transaction)
@@ -146,13 +148,18 @@ func transaction(w http.ResponseWriter, r *http.Request) {
 }
 
 func bemTest(w http.ResponseWriter, r *http.Request) {
-	bemFile := "public_key.pem"
-	binaryData, _ := cryptoUtils.ImportPEMFile(bemFile)
+	// bemFile := "public_key.pem"
+	// binaryData, _ := cryptoUtils.ImportPEMFile(bemFile)
 	// binaryTobase58 := cryptoUtils.BinaryToBase58Check(binaryData)
-	binaryToBase64, _ := cryptoUtils.BinaryToBase64(binaryData)
+	// binaryToBase64, _ := cryptoUtils.BinaryToBase64(binaryData)
 	// Base58CheckToBinary, _ := cryptoUtils.Base58CheckToBinary(binaryTobase58)
 	// binarytopem, _ := cryptoUtils.BinaryToPEM(Base58CheckToBinary, "public")
-	fmt.Println(binaryToBase64)
-	// cryptoUtils.KeyGen()
+	// fmt.Println(binaryToBase64)
+	cryptoUtils.KeyGen()
+
+}
+
+func keyGenUi(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, "keyGenUi.html")
 
 }

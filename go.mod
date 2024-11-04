@@ -3,13 +3,13 @@ module bitcoin-sidechain
 go 1.23.2
 
 require (
+	github.com/btcsuite/btcd/btcec/v2 v2.3.4
 	github.com/btcsuite/btcutil v1.0.2
 	github.com/mattn/go-sqlite3 v1.14.24
 	modernc.org/sqlite v1.33.1
 )
 
 require (
-	github.com/btcsuite/btcd/btcec/v2 v2.3.4 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect

@@ -2,12 +2,12 @@ POST http://localhost/verifysignature
 Content-Type: application/json
 
 {
-  "signature": "GDzSLTgOLqX9I+/W2zOT6aSdm68Be+lOt6BiuitKJnFN2uitJR1SaAeRbSmWyM41QXetVYQOKNX5HZAjyKP3U9v2EibxTYbJD1YnEqitX7hs3BvGKqxlNIUz+DHYSbgNAgRv7sWlX3/s9WhNZBACTEqu2O6VEv/rVOJ7gtI2PCISYQ93E7Zm+RN9WBManbBdmIXYvlDYAjQJ0G1eXRexsKEkQfqxjvRw5mrQxwJUKlLKmtHQtTI2cjGGVZbu8cdJBkRX9phocgWE/IM3oHq/ZEjTLdEBB1+N4aKbkoHELnGRhicDCLxENmIURLFYP25M4UtRitfEq+gjsZvTohgK8g==",
+  "signature": "",
   "transaction": {
-    "from": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0uwgh0ecMj8gBLs00/btmr5sYwrX72l7IlLQ8uy5S5y7ECYLuoIUS9x4FO1/LgsTtrejqId/j8k9q4Ou9u+UCT/op4C9IrHiK9P737lIiF7TLtuqR2eDEnJRn+RvGiJXT0+Q1CpeAxQ6hYnzOkviwx7AXcMQla0LA6a9K3Dj7uCm7ZTCgIUR+G7rDqqCbpH79MgI7+V1Kq8W0yquDgSduv0P6ELmRoifWLtYqEci8cCsgvpoIi6ieFBo75HEHGq2Tb08qEWKyuB57Dc95BAs4cknTgqRIMHIKDoDF3foMySdOQep4n4miZ8/f7iBOSoOYuRFlmTn64xUkomkfasw1QIDAQAB",
-    "to": "my wallet",
-    "amount": "12",
-    "nonce": "2"
+    "from": "",
+    "to": "",
+    "amount": "",
+    "nonce": ""
   }
 }
 
