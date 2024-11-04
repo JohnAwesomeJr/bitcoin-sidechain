@@ -9,6 +9,8 @@ require (
 )
 
 require (
+	github.com/btcsuite/btcd/btcec/v2 v2.3.4 // indirect
+	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect

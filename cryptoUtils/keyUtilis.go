@@ -1,6 +1,7 @@
 package cryptoUtils
 
 import (
+	"encoding/base64"
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
@@ -24,9 +25,20 @@ func ImportPEMFile(filename string) ([]byte, error) {
 }
 
 // BinaryToPEM converts binary data to PEM format.
-func BinaryToPEM(data []byte) (string, error) {
+// If private = "private"
+// If public = "public"
+func BinaryToPEM(data []byte, keyType string) (string, error) {
+	var blockType string
+	if keyType == "private" {
+		blockType = "EC PRIVATE KEY"
+	} else if keyType == "public" {
+		blockType = "PUBLIC KEY"
+	} else {
+		return "", fmt.Errorf("invalid key type: %s", keyType)
+	}
+
 	block := &pem.Block{
-		Type:  "PUBLIC KEY",
+		Type:  blockType,
 		Bytes: data,
 	}
 	pemData := pem.EncodeToMemory(block)
@@ -46,4 +58,13 @@ func BinaryToBase58Check(data []byte) string {
 // Base58CheckToBinary decodes Base58Check back to binary format.
 func Base58CheckToBinary(encoded string) ([]byte, error) {
 	return base58.Decode(encoded), nil
+}
+
+// BinaryToBase64 converts binary data to Base64 format.
+func BinaryToBase64(data []byte) (string, error) {
+	if data == nil {
+		return "", fmt.Errorf("input data cannot be nil")
+	}
+	encoded := base64.StdEncoding.EncodeToString(data)
+	return encoded, nil
 }

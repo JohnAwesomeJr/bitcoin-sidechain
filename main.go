@@ -148,8 +148,11 @@ func transaction(w http.ResponseWriter, r *http.Request) {
 func bemTest(w http.ResponseWriter, r *http.Request) {
 	bemFile := "public_key.pem"
 	binaryData, _ := cryptoUtils.ImportPEMFile(bemFile)
-	binaryTobase58 := cryptoUtils.BinaryToBase58Check(binaryData)
-	Base58CheckToBinary, _ := cryptoUtils.Base58CheckToBinary(binaryTobase58)
-	binarytopem, _ := cryptoUtils.BinaryToPEM(Base58CheckToBinary)
-	fmt.Println(binarytopem)
+	// binaryTobase58 := cryptoUtils.BinaryToBase58Check(binaryData)
+	binaryToBase64, _ := cryptoUtils.BinaryToBase64(binaryData)
+	// Base58CheckToBinary, _ := cryptoUtils.Base58CheckToBinary(binaryTobase58)
+	// binarytopem, _ := cryptoUtils.BinaryToPEM(Base58CheckToBinary, "public")
+	fmt.Println(binaryToBase64)
+	// cryptoUtils.KeyGen()
+
 }
