@@ -58,7 +58,7 @@ func hashDatabase(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-func VerifySignature(w http.ResponseWriter, r *http.Request) {
+func VerifySignatureOLD(w http.ResponseWriter, r *http.Request) {
 
 	type Transaction struct {
 		From   string `json:"from"`
@@ -85,7 +85,7 @@ func VerifySignature(w http.ResponseWriter, r *http.Request) {
 	to := req.Transaction.To
 	amount := req.Transaction.Amount
 	nonce := req.Transaction.Nonce
-	publicKey := cryptoUtils.FormatPEMPublicKey(from)
+	publicKey := req.Transaction.From
 
 	type justTransactionData struct {
 		From   string `json:"from"`
@@ -113,7 +113,7 @@ func VerifySignature(w http.ResponseWriter, r *http.Request) {
 	// Print the JSON string
 	// fmt.Println(string(jsonData))
 
-	result, err := cryptoUtils.VerifySignature(signature, publicKey, reorderedCleanedJson)
+	result, err := cryptoUtils.VerifySignature(publicKey, reorderedCleanedJson, signature)
 	if err != nil {
 		fmt.Println("Error:", err)
 	} else {
@@ -121,6 +121,42 @@ func VerifySignature(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write([]byte(publicKey))
+	fmt.Println(reorderedCleanedJson)
+}
+
+func VerifySignature(w http.ResponseWriter, r *http.Request) {
+	type Transaction struct {
+		From   string `json:"from"`
+		To     string `json:"to"`
+		Amount string `json:"amount"`
+		Nonce  string `json:"nonce"`
+	}
+
+	type KeySignRequest struct {
+		Signature   string      `json:"signature"`
+		Transaction Transaction `json:"transaction"`
+	}
+
+	// Decode the incoming JSON request
+	var req KeySignRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close() // Close the request body
+
+	// Convert the Transaction back to a JSON string
+	transactionJSON, err := json.Marshal(req.Transaction)
+	if err != nil {
+		http.Error(w, "Error converting transaction to JSON", http.StatusInternalServerError)
+		return
+	}
+
+	// Assuming cryptoUtils.VerifySignature is your verification function
+	publicKey := req.Transaction.From // Use the "from" field as the public key
+	signature := req.Signature
+	message := string(transactionJSON) // The JSON string of the transaction
+	fmt.Println(cryptoUtils.VerifySignature(signature, publicKey, message))
 }
 
 func transaction(w http.ResponseWriter, r *http.Request) {

@@ -2,13 +2,21 @@ POST http://localhost/verifysignature
 Content-Type: application/json
 
 {
-  "signature": "",
+  "signature": "MEQCIDieERyoFjHh34XE8+Er17H/jxQF1Uq6tlP91hXIYeLcAiByVWQ6PuTzY3BpjxG0mALytycQvyMSboVBDYwXKbdqNw==",
   "transaction": {
-    "from": "",
-    "to": "",
-    "amount": "",
-    "nonce": ""
-  }
+  "from": "BLR3HwS0wlNBFqgv9XdBbd23EPfYDTeh+AYgtMRa7P9VWHyI8O2zzrtBH9ANo5zkf8vpuHrlwI0fSgdAmENvjYs=",
+  "to": "BLR3HwS0wlNBFqgv9XdBbd23EPfYDTeh+AYgtMRa7P9VWHyI8O2zzrtBH9ANo5zkf8vpuHrlwI0fSgdAmENvjYs=",
+  "amount": "30",
+  "nonce": "1234"
+}
 }
 
+
+
+
+
+
+
 GET http://localhost/bem
+
+GET http://localhost/keygen

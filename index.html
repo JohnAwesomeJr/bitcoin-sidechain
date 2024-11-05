@@ -1,70 +1,205 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign Data</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/forge/0.10.0/forge.min.js"></script>
+    <title>ECDSA Signature Generator</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/elliptic/6.5.4/elliptic.min.js"></script>
 </head>
-
 <body>
-    <input type="file" id="keyFile" accept=".pem" />
-    <textarea id="dataToSign" placeholder="Enter JSON data to sign"></textarea>
-    <button id="signButton">Sign</button>
-    <pre id="signatureOutput"></pre>
+    <h2>Elliptic Curve Signature Generator</h2>
+    <form id="jsonForm">
+        <input type="text" id="from" name="from" required>
+        <label for="from">From Address:</label>
+        <br>
+        <input type="text" id="to" name="to" required>
+        <label for="to">To Address:</label>
+        <br>
+        <input type="number" id="amount" name="amount" required>
+        <label for="amount">Amount:</label>
+        <br>
+        <input type="text" readonly id="nonce" name="nonce" required>
+        <label for="nonce">Nonce:</label>
+        <br>
+        <button type="submit" onclick="refreshNonce()">Generate JSON</button>
+    </form>
+
+    <form id="signatureForm">
+        <label for="privateKey">Private Key (Base64):</label><br>
+        <input type="text" id="privateKey" required><br><br>
+
+        <label for="message">Message (JSON):</label><br>
+        <textarea id="message" rows="4" required></textarea><br><br>
+
+        <button type="button" onclick="generateSignature()">Generate Signature</button>
+    </form>
+
+    <h3>Signature (Base64):</h3>
+    <textarea id="signature" rows="3" readonly></textarea>
+
+    <button type="button" onclick="generateTransactionJson()">Generate Transaction JSON</button>
+
+    <h3>Generated JSON:</h3>
+    <pre id="generatedJson"></pre>
+
+    <button type="button" onclick="sendTransactionJson()">Send to Endpoint</button>
+
+    <h3>Response:</h3>
+    <pre id="response"></pre>
 
     <script>
-        document.getElementById('signButton').addEventListener('click', async () => {
-            const fileInput = document.getElementById('keyFile');
-            const jsonData = document.getElementById('dataToSign').value;
+        function generateRandomHex() {
+            return Math.floor(Math.random() * 0xFFFFFFFF).toString(16).padStart(8, '0');
+        }
 
-            if (!fileInput.files.length || !jsonData) {
-                alert('Please select a key file and enter data to sign.');
+        function refreshNonce() {
+            const hexValue = generateRandomHex();
+            document.getElementById('nonce').value = hexValue;
+        }
+
+        window.onload = function() {
+            refreshNonce();
+        };
+
+        document.getElementById('jsonForm').addEventListener('submit', function(event) {
+            event.preventDefault(); // Prevent form submission
+    
+            // Get input values
+            const from = document.getElementById('from').value;
+            const to = document.getElementById('to').value;
+            const amount = document.getElementById('amount').value;
+            const nonce = document.getElementById('nonce').value;
+    
+            // Create JSON output
+            const output = {
+                from: from,
+                to: to,
+                amount: amount,
+                nonce: nonce
+            };
+    
+            // Display output in the message textarea
+            document.getElementById('message').value = JSON.stringify(output, null, 2);
+        });
+
+        function isValidJSON(message) {
+            try {
+                JSON.parse(message);
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function sortJSONKeys(json) {
+            const sorted = {};
+            Object.keys(json)
+                .sort()
+                .forEach(key => {
+                    sorted[key] = json[key];
+                });
+            return sorted;
+        }
+
+        function generateSignature() {
+            if (document.getElementById('privateKey').value !== "") {
+                // Import elliptic curve for secp256k1
+                const EC = elliptic.ec;
+                const ec = new EC('secp256k1');
+
+                // Get the private key and message from the form
+                const privateKeyBase64 = document.getElementById('privateKey').value;
+                let message = document.getElementById('message').value;
+
+                // Validate if the message is valid JSON
+                if (!isValidJSON(message)) {
+                    alert('Please enter a valid JSON message.');
+                    return;
+                }
+
+                // Parse the JSON message
+                const jsonMessage = JSON.parse(message);
+                // Sort the JSON keys alphabetically
+                const sortedMessage = sortJSONKeys(jsonMessage);
+                // Convert the sorted JSON back to string
+                message = JSON.stringify(sortedMessage);
+
+                // Remove all spaces and line breaks from the message
+                message = message.replace(/\s+/g, '');
+
+                // Convert private key from Base64 to hex
+                const privateKeyHex = atob(privateKeyBase64).split('').map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join('');
+
+                // Generate a key pair using the private key
+                const keyPair = ec.keyFromPrivate(privateKeyHex, 'hex');
+
+                // Hash the message
+                const msgHash = ec.hash().update(message).digest();
+
+                // Sign the message hash
+                const signature = keyPair.sign(msgHash);
+
+                // Convert the signature to DER format and then to Base64
+                const signatureHex = signature.toDER('hex');
+                const signatureBase64 = btoa(signatureHex.match(/.{1,2}/g).map(byte => String.fromCharCode(parseInt(byte, 16))).join(''));
+
+                // Output the signature in Base64 format
+                document.getElementById('signature').value = signatureBase64;
+            } else {
+                alert('Please use a private key to sign.');
+            }
+        }
+
+        function generateTransactionJson() {
+            // Get the form data
+            const from = document.getElementById('from').value;
+            const to = document.getElementById('to').value;
+            const amount = document.getElementById('amount').value;
+            const nonce = document.getElementById('nonce').value;
+            const signature = document.getElementById('signature').value;
+
+            // Create the JSON object
+            const transactionJson = {
+                signature: signature,
+                transaction: {
+                    from: from,
+                    to: to,
+                    amount: amount,
+                    nonce: nonce
+                }
+            };
+
+            // Display the JSON object in the 'generatedJson' element
+            document.getElementById('generatedJson').textContent = JSON.stringify(transactionJson, null, 2);
+        }
+
+        function sendTransactionJson() {
+            // Get the generated JSON from the 'generatedJson' element
+            const transactionJson = document.getElementById('generatedJson').textContent;
+
+            if (!transactionJson) {
+                alert('No transaction JSON to send.');
                 return;
             }
 
-            const file = fileInput.files[0];
-            const keyPem = await file.text();
-
-            try {
-                // Process and sign the JSON data
-                const signature = signData(keyPem, jsonData);
-                document.getElementById('signatureOutput').textContent = signature;
-            } catch (error) {
-                alert('Error signing data: ' + error.message);
-            }
-        });
-
-        function signData(keyPem, jsonData) {
-            // Parse JSON and sort it
-            const parsedData = JSON.parse(jsonData);
-            const sortedData = sortObject(parsedData);
-            const jsonString = JSON.stringify(sortedData); // Convert back to JSON string
-
-            // Create a secp256k1 ECDSA key from the private key
-            const ec = new elliptic.ec('secp256k1');
-            const privateKey = ec.keyFromPrivate(keyPem.replace(/-----BEGIN EC PRIVATE KEY-----|-----END EC PRIVATE KEY-----|\n/g, ''), 'base64');
-
-            // Sign the message
-            const msgHash = forge.md.sha256.create().update(jsonString).digest().toHex();
-            const signature = privateKey.sign(msgHash);
-
-            // Convert the signature to DER format and then to base64
-            const derSignature = signature.toDER('hex');
-            return forge.util.encode64(forge.util.hexToBytes(derSignature));
-        }
-
-        function sortObject(obj) {
-            // Sort the object properties alphabetically
-            return Object.keys(obj).sort().reduce((sorted, key) => {
-                sorted[key] = (typeof obj[key] === 'object' && !Array.isArray(obj[key])) ?
-                    sortObject(obj[key]) : obj[key];
-                return sorted;
-            }, {});
+            // Send the JSON to the endpoint using fetch
+            fetch('http://localhost/verifysignature', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: transactionJson
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Display the response from the server
+                document.getElementById('response').textContent = JSON.stringify(data, null, 2);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error sending transaction to endpoint.');
+            });
         }
     </script>
 </body>
-
 </html>

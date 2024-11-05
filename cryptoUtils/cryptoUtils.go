@@ -2,15 +2,17 @@ package cryptoUtils
 
 import (
 	"crypto"
+	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/asn1"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"math/big"
 	"os"
 	"sort"
 	"strings"
@@ -146,10 +148,9 @@ func KeyGen() {
 	// Convert public key to bytes (uncompressed format)
 	pubKeyBytes := publicKey.SerializeUncompressed()
 
-	// Print the keys in hexadecimal format
-	fmt.Printf("Private Key: %s\n", hex.EncodeToString(privateKeyBytes))
-	fmt.Printf("Public Key: %s\n", hex.EncodeToString(pubKeyBytes))
-
+	// Print the keys in Base64 format
+	fmt.Printf("Private Key: %s\n", base64.StdEncoding.EncodeToString(privateKeyBytes))
+	fmt.Printf("Public Key: %s\n", base64.StdEncoding.EncodeToString(pubKeyBytes))
 }
 
 func FormatPEMPublicKey(key string) string {
@@ -171,7 +172,7 @@ func FormatPEMPublicKey(key string) string {
 	return header + formattedKey + footer
 }
 
-func VerifySignature(signatureBase64 string, publicKeyPEM string, message string) (string, error) {
+func VerifySignatureOLD(signatureBase64 string, publicKeyPEM string, message string) (string, error) {
 	// Decode the base64 encoded signature
 	signature, err := base64.StdEncoding.DecodeString(signatureBase64)
 	if err != nil {
@@ -200,6 +201,128 @@ func VerifySignature(signatureBase64 string, publicKeyPEM string, message string
 	}
 
 	return "verified", nil
+}
+
+func VerifySignatureOLD2(publicKeyBase64 string, message string, signatureBase64 string) (string, error) {
+	// Decode the public key from Base64
+	publicKeyBytes, err := base64.StdEncoding.DecodeString(publicKeyBase64)
+	if err != nil {
+		return "Not Valid", err
+	}
+
+	// Parse the public key
+	publicKey, err := x509.ParsePKIXPublicKey(publicKeyBytes)
+	if err != nil {
+		return "Not Valid", err
+	}
+
+	ecdsaPublicKey, ok := publicKey.(*ecdsa.PublicKey)
+	if !ok {
+		return "Not Valid", errors.New("not an ECDSA public key")
+	}
+
+	// Decode the signature from Base64
+	signatureBytes, err := base64.StdEncoding.DecodeString(signatureBase64)
+	if err != nil {
+		return "Not Valid", err
+	}
+
+	// Hash the message
+	hash := sha256.Sum256([]byte(message))
+
+	// Split the signature into r and s values
+	half := len(signatureBytes) / 2
+	r := big.NewInt(0).SetBytes(signatureBytes[:half])
+	s := big.NewInt(0).SetBytes(signatureBytes[half:])
+
+	// Verify the signature
+	valid := ecdsa.Verify(ecdsaPublicKey, hash[:], r, s)
+	if valid {
+		return "Valid", nil
+	}
+
+	return "Not Valid", nil
+}
+
+// VerifySignature verifies if the given base64 encoded signature is valid for the message signed with the given public key.
+func VerifySignature(signatureB64, publicKeyB64, jsonMessage string) (string, error) {
+	type ECDSASignature struct {
+		R *big.Int
+		S *big.Int
+	}
+	// Decode the base64 encoded signature
+	signatureBytes, err := base64.StdEncoding.DecodeString(signatureB64)
+	if err != nil {
+		return "not valid", fmt.Errorf("failed to decode signature: %v", err)
+	}
+
+	// Decode the base64 encoded public key
+	publicKeyBytes, err := base64.StdEncoding.DecodeString(publicKeyB64)
+	if err != nil {
+		return "not valid", fmt.Errorf("failed to decode public key: %v", err)
+	}
+
+	// Parse the public key
+	pubKey, err := btcec.ParsePubKey(publicKeyBytes)
+	if err != nil {
+		return "not valid", fmt.Errorf("failed to parse public key: %v", err)
+	}
+
+	// Clean the JSON message
+	cleanedMessage, err := cleanJSON(jsonMessage)
+	if err != nil {
+		return "not valid", fmt.Errorf("failed to clean JSON message: %v", err)
+	}
+
+	// Hash the cleaned message
+	hash := sha256.Sum256([]byte(cleanedMessage))
+
+	// Parse the ECDSA signature (DER format)
+	var sig ECDSASignature
+	if _, err := asn1.Unmarshal(signatureBytes, &sig); err != nil {
+		return "not valid", fmt.Errorf("failed to unmarshal DER signature: %v", err)
+	}
+
+	// Verify the signature
+	valid := ecdsa.Verify(pubKey.ToECDSA(), hash[:], sig.R, sig.S)
+
+	if valid {
+		return "valid", nil
+	}
+	return "not valid", errors.New("signature verification failed")
+}
+
+// cleanJSON cleans the JSON string by sorting the keys and removing whitespace and line breaks.
+func cleanJSON(jsonString string) (string, error) {
+	var jsonData map[string]interface{}
+
+	// Unmarshal the JSON string into a map
+	err := json.Unmarshal([]byte(jsonString), &jsonData)
+	if err != nil {
+		return "", err
+	}
+
+	// Create a sorted list of keys
+	var keys []string
+	for key := range jsonData {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	// Build a cleaned JSON string
+	var cleanedBuilder strings.Builder
+	cleanedBuilder.WriteString("{")
+	for i, key := range keys {
+		if i > 0 {
+			cleanedBuilder.WriteString(",")
+		}
+		value := jsonData[key]
+		valueBytes, _ := json.Marshal(value)
+		cleanedBuilder.WriteString("\"" + key + "\":" + string(valueBytes))
+	}
+	cleanedBuilder.WriteString("}")
+
+	return cleanedBuilder.String(), nil
 }
 
 func HashMessage(message string) []byte {
