@@ -156,7 +156,24 @@ func VerifySignature(w http.ResponseWriter, r *http.Request) {
 	publicKey := req.Transaction.From // Use the "from" field as the public key
 	signature := req.Signature
 	message := string(transactionJSON) // The JSON string of the transaction
-	fmt.Println(cryptoUtils.VerifySignature(signature, publicKey, message))
+
+	// Check if the signature is valid
+	verificationResult, _ := cryptoUtils.VerifySignature(signature, publicKey, message)
+
+	// Create the response object
+	response := map[string]string{}
+	if verificationResult == "valid" {
+		response["message"] = "Valid"
+	} else {
+		response["message"] = "Invalid"
+	}
+
+	// Set the content type and encode the response as JSON
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "Error encoding response", http.StatusInternalServerError)
+		return
+	}
 }
 
 func transaction(w http.ResponseWriter, r *http.Request) {
