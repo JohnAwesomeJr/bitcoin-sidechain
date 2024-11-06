@@ -19,11 +19,14 @@ func main() {
 
 	// Work In Progress
 	http.HandleFunc("/hashData", hashDatabaseHandler)
+	http.HandleFunc("/makewallet", insertNewWallet)
 
 	if err := http.ListenAndServe(":80", nil); err != nil {
 		panic(err)
 	}
 }
+
+// Front End Pages
 func rootHandler(w http.ResponseWriter, r *http.Request) {
 
 	http.ServeFile(w, r, "pages/index.html")
@@ -38,6 +41,7 @@ func keyGenHandler(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, "pages/keyGen.html")
 }
 
+// API Endpoints
 func VerifySignatureHandler(w http.ResponseWriter, r *http.Request) {
 	type Transaction struct {
 		From   string `json:"from"`
@@ -90,10 +94,15 @@ func VerifySignatureHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Work In Progress
 func hashDatabaseHandler(w http.ResponseWriter, r *http.Request) {
 	dbFilename := filepath.Join(".", "nodeList1.db")
-	hash := computeDatabaseHash(dbFilename)
+	hash := cryptoUtils.ComputeDatabaseHash(dbFilename)
 	response := map[string]string{"hash": hash}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
+}
+
+func insertNewWallet(w http.ResponseWriter, r *http.Request) {
+	cryptoUtils.NewWallet(`hi, my name is bob. and I like 'my wife!'. she is "awesome!"`)
 }

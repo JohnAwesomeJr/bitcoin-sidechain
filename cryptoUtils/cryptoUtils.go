@@ -1,14 +1,18 @@
 package cryptoUtils
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
+	"database/sql"
 	"encoding/asn1"
 	"encoding/base64"
+	"encoding/csv"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -359,4 +363,104 @@ func ReorderJSON(jsonStr string) (string, error) {
 		return "", fmt.Errorf("error marshalling JSON: %w", err)
 	}
 	return string(reorderedJSON), nil
+}
+
+func ComputeDatabaseHash(dbFilename string) string {
+	// Open the SQLite database
+	db, err := sql.Open("sqlite", dbFilename)
+	if err != nil {
+		return fmt.Sprintf("failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Query all table names
+	rows, err := db.Query("SELECT name FROM sqlite_master WHERE type='table'")
+	if err != nil {
+		return fmt.Sprintf("failed to query table names: %v", err)
+	}
+	defer rows.Close()
+
+	// Buffer to hold CSV data
+	var buffer bytes.Buffer
+	writer := csv.NewWriter(&buffer)
+
+	// Iterate through tables and write their data to buffer
+	for rows.Next() {
+		var table string
+		if err := rows.Scan(&table); err != nil {
+			return fmt.Sprintf("failed to scan table name: %v", err)
+		}
+
+		// Query table rows
+		tableRows, err := db.Query(fmt.Sprintf("SELECT * FROM %s", table))
+		if err != nil {
+			return fmt.Sprintf("failed to query rows from table %s: %v", table, err)
+		}
+		defer tableRows.Close()
+
+		// Get column names and write as header
+		columns, err := tableRows.Columns()
+		if err != nil {
+			return fmt.Sprintf("failed to get columns from table %s: %v", table, err)
+		}
+		writer.Write(columns)
+
+		// Write rows to buffer
+		for tableRows.Next() {
+			columnPointers := make([]interface{}, len(columns))
+			for i := range columnPointers {
+				columnPointers[i] = new(interface{}) // Allocate new interface{}
+			}
+
+			if err := tableRows.Scan(columnPointers...); err != nil {
+				return fmt.Sprintf("failed to scan row from table %s: %v", table, err)
+			}
+
+			rowData := make([]string, len(columns))
+			for i, col := range columnPointers {
+				if col != nil {
+					rowData[i] = fmt.Sprintf("%v", *(col.(*interface{}))) // Dereference the interface
+				}
+			}
+			writer.Write(rowData)
+		}
+	}
+
+	writer.Flush()
+
+	// Compute SHA-256 hash of the buffer content
+	hash := sha256.Sum256(buffer.Bytes())
+	return hex.EncodeToString(hash[:])
+}
+
+// NewWallet function takes a wallet address, checks if it exists, and creates it with a balance of 0 if it doesn't.
+func NewWallet(walletAddress string) error {
+	// Connect to the SQLite database (assuming database file is wallet.db)
+	db, err := sql.Open("sqlite3", "nodeList1.db")
+	if err != nil {
+		return fmt.Errorf("failed to open database: %w", err)
+	}
+	defer db.Close()
+
+	// Check if wallet already exists
+	var exists bool
+	err = db.QueryRow("SELECT EXISTS(SELECT 1 FROM wallet_balances WHERE wallet = ?)", walletAddress).Scan(&exists)
+	if err != nil {
+		return fmt.Errorf("failed to check wallet existence: %w", err)
+	}
+
+	// If wallet already exists, do nothing
+	if exists {
+		fmt.Println("Wallet already exists.")
+		return nil
+	}
+
+	// If wallet does not exist, create it with a balance of 0
+	_, err = db.Exec("INSERT INTO wallet_balances (wallet, balance) VALUES (?, 0)", walletAddress)
+	if err != nil {
+		return fmt.Errorf("failed to create new wallet: %w", err)
+	}
+
+	fmt.Println("New wallet created with balance 0.")
+	return nil
 }
