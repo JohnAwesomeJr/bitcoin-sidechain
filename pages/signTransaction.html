@@ -1,16 +1,104 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ECDSA Signature Generator</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/elliptic/6.5.4/elliptic.min.js"></script>
+    <style>
+        /* Reset and basic styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #f8f8f8;
+        }
+
+        .navbar {
+            background-color: #fff;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            padding: 15px 0;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 600px;
+        }
+
+        .nav-list {
+            list-style: none;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+        }
+
+        .nav-link {
+            text-decoration: none;
+            color: #333;
+            font-size: 16px;
+            font-weight: 500;
+            padding: 10px 20px;
+            border-radius: 50px;
+            text-transform: uppercase;
+            transition: all 0.3s ease;
+            letter-spacing: 1px;
+        }
+
+        /* Button colors */
+        .main-btn {
+            background-color: #3498db;
+            color: #fff;
+        }
+
+        .keygen-btn {
+            background-color: #e67e22;
+            color: #fff;
+        }
+
+        .transaction-btn {
+            background-color: #2ecc71;
+            color: #fff;
+        }
+
+        /* Hover effect */
+        .nav-link:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .nav-link:active {
+            transform: translateY(2px);
+            box-shadow: none;
+        }
+
+        /* Responsive styling */
+        @media (max-width: 768px) {
+            .nav-list {
+                flex-direction: column;
+            }
+
+            .nav-link {
+                margin: 10px 0;
+            }
+        }
+    </style>
 </head>
+
 <body>
+    <nav class="navbar">
+        <ul class="nav-list">
+            <li><a href="/" class="nav-link main-btn">Main</a></li>
+            <li><a href="/keysGen" class="nav-link keygen-btn">Key Gen</a></li>
+            <li><a href="/sendTransaction" class="nav-link transaction-btn">Transaction</a></li>
+        </ul>
+    </nav>
     <h2>Elliptic Curve Signature Generator</h2>
     <form id="jsonForm">
         <input type="text" id="from" name="from" required>
-        <label for="from">From Address:</label>
+        <label for="from">From Address: (Must be Your Public Key)</label>
         <br>
         <input type="text" id="to" name="to" required>
         <label for="to">To Address:</label>
@@ -36,13 +124,13 @@
 
     <h3>Signature (Base64):</h3>
     <textarea id="signature" rows="3" readonly></textarea>
-
+    <br>
     <button type="button" onclick="generateTransactionJson()">Generate Transaction JSON</button>
 
     <h3>Generated JSON:</h3>
     <pre id="generatedJson"></pre>
 
-    <button type="button" onclick="sendTransactionJson()">Send to Endpoint</button>
+    <button type="button" onclick="sendTransactionJson()">Send to JSON Endpoint</button>
 
     <h3>Response:</h3>
     <pre id="response"></pre>
@@ -57,19 +145,19 @@
             document.getElementById('nonce').value = hexValue;
         }
 
-        window.onload = function() {
+        window.onload = function () {
             refreshNonce();
         };
 
-        document.getElementById('jsonForm').addEventListener('submit', function(event) {
+        document.getElementById('jsonForm').addEventListener('submit', function (event) {
             event.preventDefault(); // Prevent form submission
-    
+
             // Get input values
             const from = document.getElementById('from').value;
             const to = document.getElementById('to').value;
             const amount = document.getElementById('amount').value;
             const nonce = document.getElementById('nonce').value;
-    
+
             // Create JSON output
             const output = {
                 from: from,
@@ -77,7 +165,7 @@
                 amount: amount,
                 nonce: nonce
             };
-    
+
             // Display output in the message textarea
             document.getElementById('message').value = JSON.stringify(output, null, 2);
         });
@@ -190,16 +278,17 @@
                 },
                 body: transactionJson
             })
-            .then(response => response.json())
-            .then(data => {
-                // Display the response from the server
-                document.getElementById('response').textContent = JSON.stringify(data, null, 2);
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Error sending transaction to endpoint.');
-            });
+                .then(response => response.json())
+                .then(data => {
+                    // Display the response from the server
+                    document.getElementById('response').textContent = JSON.stringify(data, null, 2);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error sending transaction to endpoint.');
+                });
         }
     </script>
 </body>
+
 </html>

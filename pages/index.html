@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navigation Menu</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        /* Reset and basic styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #f8f8f8;
+        }
+
+        .navbar {
+            background-color: #fff;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            padding: 15px 0;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 600px;
+        }
+
+        .nav-list {
+            list-style: none;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+        }
+
+        .nav-link {
+            text-decoration: none;
+            color: #333;
+            font-size: 16px;
+            font-weight: 500;
+            padding: 10px 20px;
+            border-radius: 50px;
+            text-transform: uppercase;
+            transition: all 0.3s ease;
+            letter-spacing: 1px;
+        }
+
+        /* Button colors */
+        .main-btn {
+            background-color: #3498db;
+            color: #fff;
+        }
+
+        .keygen-btn {
+            background-color: #e67e22;
+            color: #fff;
+        }
+
+        .transaction-btn {
+            background-color: #2ecc71;
+            color: #fff;
+        }
+
+        /* Hover effect */
+        .nav-link:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .nav-link:active {
+            transform: translateY(2px);
+            box-shadow: none;
+        }
+
+        /* Responsive styling */
+        @media (max-width: 768px) {
+            .nav-list {
+                flex-direction: column;
+            }
+
+            .nav-link {
+                margin: 10px 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="navbar">
+        <ul class="nav-list">
+            <li><a href="/" class="nav-link main-btn">Main</a></li>
+            <li><a href="/keysGen" class="nav-link keygen-btn">Key Gen</a></li>
+            <li><a href="/sendTransaction" class="nav-link transaction-btn">Transaction</a></li>
+        </ul>
+    </nav>
+</body>
