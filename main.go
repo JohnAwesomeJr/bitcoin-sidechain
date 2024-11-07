@@ -3,6 +3,7 @@ package main
 import (
 	"bitcoin-sidechain/cryptoUtils"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"path/filepath"
 )
@@ -71,18 +72,32 @@ func VerifySignatureHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Assuming cryptoUtils.VerifySignature is your verification function
-	publicKey := req.Transaction.From // Use the "from" field as the public key
+	publicKey := req.Transaction.From
+	toAddress := req.Transaction.To
+	amount := req.Transaction.Amount
+	nonce := req.Transaction.Nonce
+
 	signature := req.Signature
 	message := string(transactionJSON) // The JSON string of the transaction
 
 	// Check if the signature is valid
 	verificationResult, _ := cryptoUtils.VerifySignature(signature, publicKey, message)
 
+	// make wallet if it doesn't exists
+	databaseFile := "nodeList1.db"
+	nonceValidation, nonceError := cryptoUtils.CheckNonce(databaseFile, nonce)
+
+	cryptoUtils.NewWallet(toAddress, databaseFile)
+
+	cryptoUtils.MoveSats(publicKey, toAddress, amount, databaseFile)
+
 	// Create the response object
 	response := map[string]string{}
-	if verificationResult == "valid" {
+	if verificationResult == "valid" && !nonceValidation {
 		response["message"] = "Valid"
 	} else {
+		fmt.Println("Verification Result:", verificationResult)
+		fmt.Println("Nonce already used", nonceValidation, "nonceError?", nonceError)
 		response["message"] = "Invalid"
 	}
 
@@ -104,5 +119,8 @@ func hashDatabaseHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func insertNewWallet(w http.ResponseWriter, r *http.Request) {
-	cryptoUtils.NewWallet(`hi, my name is bob. and I like 'my wife!'. she is "awesome!"`)
+
+	databaseFile := "nodeList1.db"
+	cryptoUtils.NewWallet("Gasp, can it be!", databaseFile)
+
 }

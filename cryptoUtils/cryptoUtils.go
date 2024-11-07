@@ -19,11 +19,14 @@ import (
 	"math/big"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/btcsuite/btcd/btcec/v2"
 
 	"fmt"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func KeyGenRSAOLDSTYLE() {
@@ -433,12 +436,12 @@ func ComputeDatabaseHash(dbFilename string) string {
 	return hex.EncodeToString(hash[:])
 }
 
-// NewWallet function takes a wallet address, checks if it exists, and creates it with a balance of 0 if it doesn't.
-func NewWallet(walletAddress string) error {
-	// Connect to the SQLite database (assuming database file is wallet.db)
-	db, err := sql.Open("sqlite3", "nodeList1.db")
+func NewWallet(walletAddress string, databaseFile string) (bool, error) {
+
+	// Connect to the SQLite database
+	db, err := sql.Open("sqlite3", databaseFile)
 	if err != nil {
-		return fmt.Errorf("failed to open database: %w", err)
+		return false, fmt.Errorf("failed to open database: %w", err)
 	}
 	defer db.Close()
 
@@ -446,21 +449,119 @@ func NewWallet(walletAddress string) error {
 	var exists bool
 	err = db.QueryRow("SELECT EXISTS(SELECT 1 FROM wallet_balances WHERE wallet = ?)", walletAddress).Scan(&exists)
 	if err != nil {
-		return fmt.Errorf("failed to check wallet existence: %w", err)
+		return false, fmt.Errorf("failed to check wallet existence: %w", err)
 	}
 
 	// If wallet already exists, do nothing
 	if exists {
 		fmt.Println("Wallet already exists.")
-		return nil
+		return false, fmt.Errorf("wallet already exists")
 	}
 
 	// If wallet does not exist, create it with a balance of 0
 	_, err = db.Exec("INSERT INTO wallet_balances (wallet, balance) VALUES (?, 0)", walletAddress)
 	if err != nil {
-		return fmt.Errorf("failed to create new wallet: %w", err)
+		return false, fmt.Errorf("failed to create new wallet: %w", err)
 	}
 
 	fmt.Println("New wallet created with balance 0.")
+
+	return true, nil
+}
+
+// MoveSats moves an amount from one wallet to another, checking for sufficient balance.
+func MoveSats(fromAddress string, toAddress string, amount string, database string) error {
+	// Open the database connection
+	db, err := sql.Open("sqlite3", database)
+	if err != nil {
+		return fmt.Errorf("failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Convert amount to integer
+	amountInt, err := strconv.Atoi(amount)
+	if err != nil {
+		return fmt.Errorf("invalid amount: %v", err)
+	}
+
+	// Begin a transaction
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %v", err)
+	}
+
+	// Rollback if something goes wrong
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Check balance of fromAddress
+	var fromBalance int
+	err = tx.QueryRow("SELECT balance FROM wallet_balances WHERE wallet = ?", fromAddress).Scan(&fromBalance)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve balance for fromAddress: %v", err)
+	}
+
+	// Ensure fromAddress has sufficient funds
+	if fromBalance < amountInt {
+		return fmt.Errorf("insufficient funds in wallet %s", fromAddress)
+	}
+
+	// Subtract amount from fromAddress
+	_, err = tx.Exec("UPDATE wallet_balances SET balance = balance - ? WHERE wallet = ?", amountInt, fromAddress)
+	if err != nil {
+		return fmt.Errorf("failed to deduct amount from fromAddress: %v", err)
+	}
+
+	// Add amount to toAddress
+	_, err = tx.Exec("UPDATE wallet_balances SET balance = balance + ? WHERE wallet = ?", amountInt, toAddress)
+	if err != nil {
+		return fmt.Errorf("failed to add amount to toAddress: %v", err)
+	}
+
+	// Commit the transaction
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("failed to commit transaction: %v", err)
+	}
+
 	return nil
+}
+
+// CheckAndAddNonce opens an SQLite database, checks if a nonce exists in the nonce table,
+// and adds it if it does not exist, then returns false.
+func CheckNonce(dbFileName string, nonce string) (bool, error) {
+	// Open the SQLite database file
+	db, err := sql.Open("sqlite3", dbFileName)
+	if err != nil {
+		return false, fmt.Errorf("could not open database: %w", err)
+	}
+	defer db.Close()
+	// Prepare the query to check if the nonce exists
+	query := "SELECT EXISTS(SELECT 1 FROM nonce WHERE nonce = ?)"
+	var exists bool
+
+	// Execute the query
+	err = db.QueryRow(query, nonce).Scan(&exists)
+	if err != nil {
+		fmt.Println(err)
+		return false, fmt.Errorf("query execution failed: %w", err)
+	}
+
+	// If nonce does not exist, insert it into the database
+	if !exists {
+		insertQuery := "INSERT INTO nonce (nonce) VALUES (?)"
+		_, err = db.Exec(insertQuery, nonce)
+		if err != nil {
+			fmt.Println("failed to insert nonce: %w", err)
+			return false, fmt.Errorf("failed to insert nonce: %w", err)
+		}
+		// Return false as per the requirement after adding the nonce
+		return false, nil
+	}
+
+	// Return true if the nonce already existed
+	return true, nil
 }
