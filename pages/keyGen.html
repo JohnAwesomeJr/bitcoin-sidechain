@@ -6,85 +6,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Key Generator with Base64</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/elliptic/6.5.4/elliptic.min.js"></script>
-    <style>
-        /* Reset and basic styles */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/yegor256/tacit@gh-pages/tacit-css-1.8.1.min.css"/>
 
-        body {
-            font-family: 'Roboto', sans-serif;
-            background-color: #f8f8f8;
-        }
 
-        .navbar {
-            background-color: #fff;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-            padding: 15px 0;
-            border-radius: 8px;
-            width: 80%;
-            max-width: 600px;
-        }
 
-        .nav-list {
-            list-style: none;
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-        }
-
-        .nav-link {
-            text-decoration: none;
-            color: #333;
-            font-size: 16px;
-            font-weight: 500;
-            padding: 10px 20px;
-            border-radius: 50px;
-            text-transform: uppercase;
-            transition: all 0.3s ease;
-            letter-spacing: 1px;
-        }
-
-        /* Button colors */
-        .main-btn {
-            background-color: #3498db;
-            color: #fff;
-        }
-
-        .keygen-btn {
-            background-color: #e67e22;
-            color: #fff;
-        }
-
-        .transaction-btn {
-            background-color: #2ecc71;
-            color: #fff;
-        }
-
-        /* Hover effect */
-        .nav-link:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-        }
-
-        .nav-link:active {
-            transform: translateY(2px);
-            box-shadow: none;
-        }
-
-        /* Responsive styling */
-        @media (max-width: 768px) {
-            .nav-list {
-                flex-direction: column;
-            }
-
-            .nav-link {
-                margin: 10px 0;
-            }
-        }
-    </style>
 </head>
 
 <body>
@@ -93,11 +18,12 @@
             <li><a href="/" class="nav-link main-btn">Main</a></li>
             <li><a href="/keysGen" class="nav-link keygen-btn">Key Gen</a></li>
             <li><a href="/sendTransaction" class="nav-link transaction-btn">Transaction</a></li>
+            <li><a href="/balance" class="nav-link transaction-btn">Wallet Balance</a></li>
         </ul>
     </nav>
     <h2>Generate Bitcoin Private and Public Key in Base64</h2>
     <button onclick="keyGen()">Generate Keys</button>
-    <pre id="output"></pre>
+    <div id="output"></div>
 
     <script>
         function keyGen() {
@@ -115,8 +41,24 @@
             const privateKeyBase64 = btoa(String.fromCharCode(...privateKeyBytes));
             const publicKeyBase64 = btoa(String.fromCharCode(...publicKeyBytes));
 
-            // Display the keys
-            document.getElementById('output').innerText = `Private Key (Base64): ${privateKeyBase64}\nPublic Key (Base64): ${publicKeyBase64}`;
+            // Display the keys with copy buttons
+            document.getElementById('output').innerHTML = `
+                <p>Private Key (Base64): <span id="privateKey">${privateKeyBase64}</span>
+                    <button class="copy-btn" onclick="copyToClipboard('privateKey')">Copy</button>
+                </p>
+                <p>Public Key (Base64): <span id="publicKey">${publicKeyBase64}</span>
+                    <button class="copy-btn" onclick="copyToClipboard('publicKey')">Copy</button>
+                </p>
+            `;
+        }
+
+        function copyToClipboard(elementId) {
+            const text = document.getElementById(elementId).innerText;
+            navigator.clipboard.writeText(text).then(() => {
+                alert("Copied to clipboard!");
+            }).catch((err) => {
+                console.error("Could not copy text: ", err);
+            });
         }
     </script>
 </body>

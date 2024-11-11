@@ -2,8 +2,10 @@ package main
 
 import (
 	"bitcoin-sidechain/cryptoUtils"
+	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"path/filepath"
 )
@@ -14,13 +16,16 @@ func main() {
 	http.HandleFunc("/", rootHandler)
 	http.HandleFunc("/sendTransaction", sendTransactionHandler)
 	http.HandleFunc("/keysGen", keyGenHandler)
+	http.HandleFunc("/balance", walletBalance)
 
 	// API Endpoints
 	http.HandleFunc("/verifysignature", VerifySignatureHandler)
+	http.HandleFunc("/walletbalance", checkWalletBalance)
 
 	// Work In Progress
 	http.HandleFunc("/hashData", hashDatabaseHandler)
 	http.HandleFunc("/makewallet", insertNewWallet)
+	http.HandleFunc("/shuffleDatabase", shuffleDatabase)
 
 	if err := http.ListenAndServe(":80", nil); err != nil {
 		panic(err)
@@ -40,6 +45,10 @@ func sendTransactionHandler(w http.ResponseWriter, r *http.Request) {
 
 func keyGenHandler(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, "pages/keyGen.html")
+}
+
+func walletBalance(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, "pages/walletBalance.html")
 }
 
 // API Endpoints
@@ -109,6 +118,64 @@ func VerifySignatureHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func checkWalletBalance(w http.ResponseWriter, r *http.Request) {
+	// WalletBalanceRequest is a struct to parse the incoming JSON request
+	type WalletBalanceRequest struct {
+		Wallet string `json:"wallet"`
+	}
+
+	// WalletBalanceResponse is a struct to form the JSON response
+	type WalletBalanceResponse struct {
+		Status  string  `json:"status"`
+		Balance float64 `json:"balance,omitempty"`
+		Message string  `json:"message,omitempty"`
+	}
+	// Set the content type to JSON
+	w.Header().Set("Content-Type", "application/json")
+
+	// Parse the JSON request
+	var req WalletBalanceRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		return
+	}
+
+	// Open the SQLite database
+	db, err := sql.Open("sqlite3", "nodeList1.db")
+	if err != nil {
+		http.Error(w, "Failed to connect to database", http.StatusInternalServerError)
+		log.Println("Database connection error:", err)
+		return
+	}
+	defer db.Close()
+
+	// Query the wallet balance
+	var balance float64
+	err = db.QueryRow("SELECT balance FROM wallet_balances WHERE wallet = ?", req.Wallet).Scan(&balance)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// Wallet not found
+			response := WalletBalanceResponse{
+				Status:  "error",
+				Message: "Wallet not found",
+			}
+			json.NewEncoder(w).Encode(response)
+			return
+		}
+		// Internal error
+		http.Error(w, "Failed to query database", http.StatusInternalServerError)
+		log.Println("Query error:", err)
+		return
+	}
+
+	// Wallet found, send the balance
+	response := WalletBalanceResponse{
+		Status:  "success",
+		Balance: balance,
+	}
+	json.NewEncoder(w).Encode(response)
+}
+
 // Work In Progress
 func hashDatabaseHandler(w http.ResponseWriter, r *http.Request) {
 	dbFilename := filepath.Join(".", "nodeList1.db")
@@ -122,5 +189,11 @@ func insertNewWallet(w http.ResponseWriter, r *http.Request) {
 
 	databaseFile := "nodeList1.db"
 	cryptoUtils.NewWallet("Gasp, can it be!", databaseFile)
+}
+
+func shuffleDatabase(w http.ResponseWriter, r *http.Request) {
+	shuffled, _ := cryptoUtils.ShuffleRows("nodeList1.db", "computers", 1)
+
+	fmt.Println(len(shuffled))
 
 }

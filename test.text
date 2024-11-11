@@ -13,10 +13,12 @@ Content-Type: application/json
 
 
 
-
-
-
-
 GET http://localhost/bem
 
-GET http://localhost/keygen
+GET http://localhost/shuffleDatabase
+
+
+POST http://localhost/walletbalance
+Content-Type: application/json
+
+{"wallet": "BL3HwS0wlNBFqgv9XdBbd23EPfYDTeh+AYgtMRa7P9VWHyI8O2zzrtBH9ANo5zkf8vpuHrlwI0fSgdAmENvjYs="}

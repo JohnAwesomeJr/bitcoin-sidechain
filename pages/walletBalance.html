@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Check Wallet Balance</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/yegor256/tacit@gh-pages/tacit-css-1.8.1.min.css"/>
+
+
+</head>
+<body>
+    <nav class="navbar">
+        <ul class="nav-list">
+            <li><a href="/" class="nav-link main-btn">Main</a></li>
+            <li><a href="/keysGen" class="nav-link keygen-btn">Key Gen</a></li>
+            <li><a href="/sendTransaction" class="nav-link transaction-btn">Transaction</a></li>
+            <li><a href="/balance" class="nav-link transaction-btn">Wallet Balance</a></li>
+        </ul>
+    </nav>
+
+<div id="walletForm">
+    <h2>Check Wallet Balance</h2>
+    <input type="text" id="walletInput" placeholder="Enter wallet address">
+    <button onclick="checkBalance()">Check Balance</button>
+    <div id="result"></div>
+</div>
+
+<script>
+    async function checkBalance() {
+        const wallet = document.getElementById('walletInput').value;
+        const resultDiv = document.getElementById('result');
+        
+        // Clear previous result
+        resultDiv.innerHTML = '';
+
+        if (!wallet) {
+            resultDiv.innerHTML = '<span style="color: red;">Please enter a wallet address.</span>';
+            return;
+        }
+
+        try {
+            const response = await fetch('http://localhost/walletbalance', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ wallet })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok && data.status === "success") {
+                resultDiv.innerHTML = `<span style="color: green;">Balance: ${data.balance}</span>`;
+            } else {
+                resultDiv.innerHTML = `<span style="color: red;">Error: ${data.message || 'Unable to retrieve balance'}</span>`;
+            }
+        } catch (error) {
+            resultDiv.innerHTML = '<span style="color: red;">Failed to connect to server.</span>';
+        }
+    }
+</script>
+
+</body>
+</html>
+
+
+
+
+

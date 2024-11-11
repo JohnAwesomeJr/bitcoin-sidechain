@@ -6,6 +6,7 @@ require (
 	github.com/btcsuite/btcd/btcec/v2 v2.3.4
 	github.com/btcsuite/btcutil v1.0.2
 	github.com/mattn/go-sqlite3 v1.14.24
+	golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa
 	modernc.org/sqlite v1.33.1
 )
 
