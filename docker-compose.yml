@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  node-1:
+    build: .
+    container_name: node-1
+    hostname: node-1
+    ports:
+      - "8081:80"
+    volumes:
+      - ./shared_code:/app
+      - ./databases/node-1:/databases
+    networks:
+      my_network:
+        aliases:
+          - node-1
+
+  node-2:
+    build: .
+    container_name: node-2
+    hostname: node-2
+    ports:
+      - "8082:80"
+    volumes:
+      - ./shared_code:/app
+      - ./databases/node-2:/databases
+    networks:
+      my_network:
+        aliases:
+          - node-2
+
+  node-3:
+    build: .
+    container_name: node-3
+    hostname: node-3
+    ports:
+      - "8083:80"
+    volumes:
+      - ./shared_code:/app
+      - ./databases/node-3:/databases
+    networks:
+      my_network:
+        aliases:
+          - node-3
+
+networks:
+  my_network:
+    driver: bridge

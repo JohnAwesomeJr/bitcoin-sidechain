@@ -2,12 +2,15 @@ package main
 
 import (
 	"bitcoin-sidechain/cryptoUtils"
+	"bitcoin-sidechain/networkUtils"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"path/filepath"
+	"time"
 )
 
 func main() {
@@ -21,15 +24,45 @@ func main() {
 	// API Endpoints
 	http.HandleFunc("/verifysignature", VerifySignatureHandler)
 	http.HandleFunc("/walletbalance", checkWalletBalance)
+	http.HandleFunc("/ping", pingHandler)
 
 	// Work In Progress
 	http.HandleFunc("/hashData", hashDatabaseHandler)
 	http.HandleFunc("/makewallet", insertNewWallet)
 	http.HandleFunc("/shuffleDatabase", shuffleDatabase)
+	http.HandleFunc("/talkToOtherServer", TalkToOtherServers)
 
-	if err := http.ListenAndServe(":80", nil); err != nil {
+	ip := "0.0.0.0"
+	port := "80"
+	address := fmt.Sprintf("%s:%s", ip, port)
+
+	if err := http.ListenAndServe(address, nil); err != nil {
 		panic(err)
 	}
+
+	time.Sleep(2 * time.Second)
+	fmt.Println("____________Hi All!___________")
+
+}
+
+func FetchJSON(url string) (map[string]interface{}, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var data map[string]interface{}
+	if err := json.Unmarshal(body, &data); err != nil {
+		return nil, err
+	}
+
+	return data, nil
 }
 
 // Front End Pages
@@ -176,6 +209,34 @@ func checkWalletBalance(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+func pingHandler(w http.ResponseWriter, r *http.Request) {
+	// PingResponse represents the structure of the JSON response
+	type PingResponse struct {
+		LocalIP  string `json:"local_ip"`
+		GlobalIP string `json:"global_ip"`
+	}
+
+	localIP, err := networkUtils.GetLocalIP()
+	if err != nil {
+		http.Error(w, "Error getting local IP", http.StatusInternalServerError)
+		return
+	}
+
+	globalIP, err := networkUtils.GetGlobalIP()
+	if err != nil {
+		http.Error(w, "Error getting global IP", http.StatusInternalServerError)
+		return
+	}
+
+	response := PingResponse{
+		LocalIP:  localIP,
+		GlobalIP: globalIP,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
 // Work In Progress
 func hashDatabaseHandler(w http.ResponseWriter, r *http.Request) {
 	dbFilename := filepath.Join(".", "nodeList1.db")
@@ -196,4 +257,18 @@ func shuffleDatabase(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Println(len(shuffled))
 
+}
+
+func TalkToOtherServers(w http.ResponseWriter, r *http.Request) {
+	// Wait 5 seconds before fetching JSON
+	time.Sleep(5 * time.Second)
+
+	// URL to fetch JSON data from
+	url := "http://node-2/ping"
+	data, err := FetchJSON(url)
+	if err != nil {
+		log.Fatalf("Error fetching JSON: %v", err)
+	}
+
+	fmt.Println("Received JSON:", data)
 }
