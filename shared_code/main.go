@@ -6,9 +6,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
+	"mime"
 	"net/http"
+	"os"
 	"path/filepath"
 	"time"
 )
@@ -31,6 +34,8 @@ func main() {
 	http.HandleFunc("/makewallet", insertNewWallet)
 	http.HandleFunc("/shuffleDatabase", shuffleDatabase)
 	http.HandleFunc("/talkToOtherServer", TalkToOtherServers)
+	http.HandleFunc("/database", serveDatabaseHandler("nodeList1.db"))
+	http.HandleFunc("/downloadData", fileDownloadHandler)
 
 	ip := "0.0.0.0"
 	port := "80"
@@ -253,10 +258,11 @@ func insertNewWallet(w http.ResponseWriter, r *http.Request) {
 }
 
 func shuffleDatabase(w http.ResponseWriter, r *http.Request) {
-	shuffled, _ := cryptoUtils.ShuffleRows("nodeList1.db", "computers", 1)
-
-	fmt.Println(len(shuffled))
-
+	cryptoUtils.ShuffleRows("nodes.db", "nodes", 1)
+	cryptoUtils.AssignGroupNumbersToNodes("nodes.db", 3)
+	// Respond to the client
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintln(w, "You have reached the endpoint. The shuffle and group assignment have been completed successfully.")
 }
 
 func TalkToOtherServers(w http.ResponseWriter, r *http.Request) {
@@ -271,4 +277,83 @@ func TalkToOtherServers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fmt.Println("Received JSON:", data)
+}
+func serveDatabaseHandler(filePath string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Check if file exists
+		if _, err := ioutil.ReadFile(filePath); err != nil {
+			http.Error(w, "File not found", http.StatusNotFound)
+			return
+		}
+
+		// Set headers to initiate file download
+		w.Header().Set("Content-Disposition", "attachment; filename="+filepath.Base(filePath))
+		w.Header().Set("Content-Type", "application/octet-stream")
+
+		// Serve the file
+		http.ServeFile(w, r, filePath)
+	}
+}
+
+func downloadFileFromEndpoint(endpoint, directory string) error {
+	// Send GET request to the endpoint
+	resp, err := http.Get(endpoint)
+	if err != nil {
+		return fmt.Errorf("failed to fetch file from endpoint: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check if response status is OK
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("received non-200 response: %d", resp.StatusCode)
+	}
+
+	// Get the filename from the "Content-Disposition" header
+	contentDisposition := resp.Header.Get("Content-Disposition")
+	var filename string
+	if contentDisposition != "" {
+		_, params, err := mime.ParseMediaType(contentDisposition)
+		if err == nil {
+			filename = params["filename"]
+		}
+	}
+	if filename == "" {
+		return fmt.Errorf("could not determine filename from response headers")
+	}
+
+	// Create the full path for the file
+	filePath := filepath.Join(directory, filename)
+
+	// Create the file
+	file, err := os.Create(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to create file: %w", err)
+	}
+	defer file.Close()
+
+	// Write the response body to the file
+	_, err = io.Copy(file, resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to save file: %w", err)
+	}
+
+	fmt.Printf("File downloaded successfully to: %s\n", filePath)
+	return nil
+}
+
+func fileDownloadHandler(w http.ResponseWriter, r *http.Request) {
+	// Example usage
+	endpoint := "http://node-1/database" // Replace with the actual endpoint
+	directory := "./database_downloads"  // Replace with your desired directory
+
+	// Create the directory if it doesn't exist
+	if err := os.MkdirAll(directory, os.ModePerm); err != nil {
+		fmt.Println("Error creating directory:", err)
+		return
+	}
+
+	// Download the file from the endpoint
+	if err := downloadFileFromEndpoint(endpoint, directory); err != nil {
+		fmt.Println("Error downloading file:", err)
+	}
 }
