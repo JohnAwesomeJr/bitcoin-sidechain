@@ -32,10 +32,12 @@ func main() {
 	// Work In Progress
 	http.HandleFunc("/hashData", hashDatabaseHandler)
 	http.HandleFunc("/makewallet", insertNewWallet)
-	http.HandleFunc("/shuffleDatabase", shuffleDatabase)
 	http.HandleFunc("/talkToOtherServer", TalkToOtherServers)
 	http.HandleFunc("/database", serveDatabaseHandler("nodeList1.db"))
 	http.HandleFunc("/downloadData", fileDownloadHandler)
+
+	// internal node functions (not for use as an API endpoint)
+	http.HandleFunc("/shuffleDatabase", shuffleDatabase)
 
 	ip := "0.0.0.0"
 	port := "80"
@@ -257,14 +259,6 @@ func insertNewWallet(w http.ResponseWriter, r *http.Request) {
 	cryptoUtils.NewWallet("Gasp, can it be!", databaseFile)
 }
 
-func shuffleDatabase(w http.ResponseWriter, r *http.Request) {
-	cryptoUtils.ShuffleRows("nodes.db", "nodes", 1)
-	cryptoUtils.AssignGroupNumbersToNodes("nodes.db", 3)
-	// Respond to the client
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintln(w, "You have reached the endpoint. The shuffle and group assignment have been completed successfully.")
-}
-
 func TalkToOtherServers(w http.ResponseWriter, r *http.Request) {
 	// Wait 5 seconds before fetching JSON
 	time.Sleep(5 * time.Second)
@@ -356,4 +350,13 @@ func fileDownloadHandler(w http.ResponseWriter, r *http.Request) {
 	if err := downloadFileFromEndpoint(endpoint, directory); err != nil {
 		fmt.Println("Error downloading file:", err)
 	}
+}
+
+// internal node functions (not for use as an API endpoint)
+func shuffleDatabase(w http.ResponseWriter, r *http.Request) {
+	cryptoUtils.ShuffleRows("nodes.db", "nodes", 1)
+	cryptoUtils.AssignGroupNumbersToNodes("nodes.db", 3)
+	// Respond to the client
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintln(w, "You have reached the endpoint. The shuffle and group assignment have been completed successfully.")
 }
