@@ -1,9 +1,12 @@
 package cryptoUtils
 
 import (
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"log"
+	"net"
 	"strings"
 
 	"golang.org/x/exp/rand"
@@ -14,156 +17,148 @@ func columnsCommaSeparated(columns []string) string {
 	return fmt.Sprintf("%s", strings.Join(columns, ", "))
 }
 
-func ShuffleRows(dbPath, tableName string, seed int64) ([]map[string]interface{}, error) {
-	// Open the SQLite database
-	db, err := sql.Open("sqlite3", dbPath)
+func ShuffleRows(dbFile string, seed int) error {
+	// Open the SQLite database connection
+	dsn := fmt.Sprintf("%s", dbFile) // SQLite file path
+	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("failed to open database: %v", err)
 	}
 	defer db.Close()
 
-	// Retrieve all rows from the table, ordered by the current sort_order
-	query := fmt.Sprintf("SELECT rowid, * FROM %s ORDER BY sort_order ASC", tableName)
-	rows, err := db.Query(query)
+	// Prepare the query with the custom seed
+	query := fmt.Sprintf(`
+		WITH randomized_nodes AS (
+			SELECT
+				rowid,
+				"computer_id",
+				"ip_address",
+				"node_group",
+				ROW_NUMBER() OVER (ORDER BY RANDOM() %% %d) AS new_sort_order
+			FROM "nodes"
+		)
+		UPDATE "nodes"
+		SET "sort_order" = (
+			SELECT new_sort_order
+			FROM randomized_nodes
+			WHERE randomized_nodes.rowid = "nodes".rowid
+		);
+		`, seed)
+
+	// Execute the query
+	_, err = db.Exec(query)
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("failed to execute update query: %v", err)
 	}
-	defer rows.Close()
 
-	// Get column names
-	columns, err := rows.Columns()
+	return nil
+}
+
+func AssignGroupNumbers(dbFile string, groupSize int) error {
+	// Open the SQLite database
+	db, err := sql.Open("sqlite3", dbFile)
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("failed to open database: %v", err)
 	}
+	defer db.Close()
 
-	// Read all rows into a slice of maps
-	var allRows []map[string]interface{}
-	for rows.Next() {
-		// Create a slice of values and a map to hold each row
-		values := make([]interface{}, len(columns))
-		rowMap := make(map[string]interface{})
-		for i := range values {
-			values[i] = new(interface{})
-		}
-
-		// Scan the row into the values slice
-		if err := rows.Scan(values...); err != nil {
-			return nil, err
-		}
-
-		// Populate rowMap with column names and values
-		for i, colName := range columns {
-			rowMap[colName] = *(values[i].(*interface{}))
-		}
-
-		// Append the row map to allRows
-		allRows = append(allRows, rowMap)
-	}
-
-	// Check for any error that occurred during iteration
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-
-	// Seed the random number generator for deterministic shuffling
-	rand.Seed(uint64(seed))
-
-	// Shuffle the rows deterministically
-	for i := len(allRows) - 1; i > 0; i-- {
-		j := rand.Intn(i + 1)
-		allRows[i], allRows[j] = allRows[j], allRows[i]
-	}
-
-	// Begin a transaction to update the sort_order column with unique values
+	// Begin a transaction to ensure atomicity
 	tx, err := db.Begin()
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("failed to start transaction: %v", err)
 	}
+	defer tx.Rollback() // Ensure rollback in case of an error
 
-	// Prepare an update statement to modify sort_order
-	updateQuery := fmt.Sprintf("UPDATE %s SET sort_order = ? WHERE rowid = ?", tableName)
-	stmt, err := tx.Prepare(updateQuery)
+	// Create the SQL query with parameterized group size
+	query := `
+			WITH RankedNodes AS (
+				SELECT 
+					rowid,  -- Use the rowid to update the rows
+					sort_order,
+					(ROW_NUMBER() OVER (ORDER BY sort_order) - 1) / ? + 1 AS new_node_group
+				FROM nodes
+			)
+			UPDATE nodes
+			SET node_group = (SELECT new_node_group FROM RankedNodes WHERE RankedNodes.rowid = nodes.rowid);
+		`
+
+	// Execute the query with the provided group size
+	_, err = tx.Exec(query, groupSize)
 	if err != nil {
-		tx.Rollback()
-		return nil, err
-	}
-	defer stmt.Close()
-
-	// Assign new sort_order values, starting from 1 and incrementing
-	for i, row := range allRows {
-		// We are using the index `i` to assign sort_order, starting from 1
-		rowID := row["rowid"]
-		if rowID == nil {
-			tx.Rollback()
-			return nil, fmt.Errorf("row does not contain 'rowid'")
-		}
-
-		// Update the sort_order with the new value (starting from 1)
-		_, err := stmt.Exec(i+1, rowID) // i+1 to start sort_order from 1
-		if err != nil {
-			tx.Rollback()
-			return nil, err
-		}
+		return fmt.Errorf("failed to execute update query: %v", err)
 	}
 
 	// Commit the transaction
 	if err := tx.Commit(); err != nil {
-		return nil, err
+		return fmt.Errorf("failed to commit transaction: %v", err)
 	}
 
-	return allRows, nil
+	return nil
 }
 
-func AssignGroupNumbersToNodes(dbPath string, groupSize int) error {
-	// Validate groupSize
-	if groupSize <= 0 {
-		return fmt.Errorf("group size must be greater than 0")
-	}
+// ClearNodeGroupColumn clears the node_group column in the nodes table.
+func ClearNodeGroupColumn(dbPath string) error {
+	log.Println("Clearing node_group column...")
 
 	// Connect to the SQLite database
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
+		log.Println("Failed to open database:", err)
 		return fmt.Errorf("failed to open database: %w", err)
 	}
 	defer db.Close()
 
-	// Create a temporary table with row numbers based on sort_order
-	_, err = db.Exec(`
-		CREATE TEMP TABLE NumberedRows AS
-		SELECT 
-			ROW_NUMBER() OVER (ORDER BY sort_order) AS row_num, 
-			computer_id
-		FROM nodes;
-	`)
+	// Clear the node_group column by setting it to NULL
+	_, err = db.Exec("UPDATE nodes SET node_group = NULL;")
 	if err != nil {
-		return fmt.Errorf("failed to create temporary table: %w", err)
+		log.Println("Failed to clear node_group column:", err)
+		return fmt.Errorf("failed to clear node_group column: %w", err)
 	}
 
-	// Update the node_group column using a prepared statement
-	stmt, err := db.Prepare(`
-		UPDATE nodes
-		SET node_group = (
-			SELECT ((row_num - 1) / ?) + 1
-			FROM NumberedRows
-			WHERE NumberedRows.computer_id = nodes.computer_id
-		);
-	`)
+	log.Println("node_group column cleared successfully.")
+	return nil
+}
+
+// insertRandomData populates the nodes table with 100,000 rows of random data.
+func InsertRandomData(dbFile string, AmountToInsert int) {
+	rand.Seed(1234) // Seed the random number generator
+
+	db, err := sql.Open("sqlite3", dbFile)
 	if err != nil {
-		return fmt.Errorf("failed to prepare update statement: %w", err)
+		log.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	stmt, err := db.Prepare("INSERT INTO nodes (sort_order, computer_id, ip_address, node_group) VALUES (?, ?, ?, ?)")
+	if err != nil {
+		log.Fatalf("Failed to prepare statement: %v", err)
 	}
 	defer stmt.Close()
 
-	_, err = stmt.Exec(groupSize)
-	if err != nil {
-		return fmt.Errorf("failed to execute update: %w", err)
+	for i := 0; i < AmountToInsert; i++ {
+		sortOrder := i + 1
+		ipAddress := generateRandomIPAddress()
+		port := rand.Intn(65535-1024) + 1024 // Random port between 1024 and 65535
+		ipWithPort := fmt.Sprintf("%s:%d", ipAddress, port)
+		computerID := generateSHA256(ipWithPort)
+		nodeGroup := rand.Intn(10) + 1 // Random node group between 1 and 10
+
+		_, err = stmt.Exec(sortOrder, computerID, ipWithPort, nodeGroup)
+		if err != nil {
+			log.Fatalf("Failed to insert data: %v", err)
+		}
 	}
 
-	// Drop the temporary table
-	_, err = db.Exec("DROP TABLE NumberedRows;")
-	if err != nil {
-		return fmt.Errorf("failed to drop temporary table: %w", err)
-	}
+	log.Printf("Inserted %d rows successfully.", AmountToInsert)
+}
 
-	log.Println("Group assignment completed successfully.")
-	return nil
+// generateRandomIPAddress creates a random IPv4 address.
+func generateRandomIPAddress() string {
+	return net.IPv4(byte(rand.Intn(256)), byte(rand.Intn(256)), byte(rand.Intn(256)), byte(rand.Intn(256))).String()
+}
+
+// generateSHA256 hashes a string using SHA-256 and returns the hex-encoded result.
+func generateSHA256(input string) string {
+	hash := sha256.Sum256([]byte(input))
+	return hex.EncodeToString(hash[:])
 }

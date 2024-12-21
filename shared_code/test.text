@@ -26,6 +26,8 @@ Content-Type: application/json
 GET http://localhost:8081/database
 
 
-GET http://localhost:8083/ping
+GET http://localhost:8081/ping
 
-GET http://localhost:8083/shuffleDatabase
+GET http://localhost:8081/shuffleDatabase
+
+GET http://localhost:8081/dummy

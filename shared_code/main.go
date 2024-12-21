@@ -38,6 +38,7 @@ func main() {
 
 	// internal node functions (not for use as an API endpoint)
 	http.HandleFunc("/shuffleDatabase", shuffleDatabase)
+	http.HandleFunc("/dummy", addDummyNodes)
 
 	ip := "0.0.0.0"
 	port := "80"
@@ -354,9 +355,16 @@ func fileDownloadHandler(w http.ResponseWriter, r *http.Request) {
 
 // internal node functions (not for use as an API endpoint)
 func shuffleDatabase(w http.ResponseWriter, r *http.Request) {
-	cryptoUtils.ShuffleRows("nodes.db", "nodes", 1)
-	cryptoUtils.AssignGroupNumbersToNodes("nodes.db", 3)
+	cryptoUtils.ShuffleRows("nodes.db", 123456789)
+	cryptoUtils.AssignGroupNumbers("nodes.db", 10)
 	// Respond to the client
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintln(w, "You have reached the endpoint. The shuffle and group assignment have been completed successfully.")
+	fmt.Fprintln(w, "You Good?")
+}
+
+func addDummyNodes(w http.ResponseWriter, r *http.Request) {
+	cryptoUtils.InsertRandomData("nodes.db", 1000)
+	// Respond to the client
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintln(w, "insert Dummy Data Done")
 }
