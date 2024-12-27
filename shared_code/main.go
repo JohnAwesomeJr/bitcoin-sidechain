@@ -355,15 +355,22 @@ func fileDownloadHandler(w http.ResponseWriter, r *http.Request) {
 
 // internal node functions (not for use as an API endpoint)
 func shuffleDatabase(w http.ResponseWriter, r *http.Request) {
-	cryptoUtils.ShuffleRows("nodes.db", 123456789)
-	cryptoUtils.AssignGroupNumbers("nodes.db", 10)
+	// cryptoUtils.ShuffleRows("nodes.db", 1)
+	// cryptoUtils.AssignGroupNumbers("nodes.db", 10)
+	databaseFile := "nodes.db"
+	data, _ := cryptoUtils.GetDataFromDatabase(databaseFile)
+	shuffledData := cryptoUtils.ShuffleResults(data, 7684738547556)
+	orderedData := cryptoUtils.AssignNewOrderBy(shuffledData)
+	groupedData := cryptoUtils.AssignNodeGroups(orderedData, 10)
+	cryptoUtils.UpdateNodesTable(databaseFile, groupedData)
+
 	// Respond to the client
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintln(w, "You Good?")
+	fmt.Fprintln(w, "we are done!")
 }
 
 func addDummyNodes(w http.ResponseWriter, r *http.Request) {
-	cryptoUtils.InsertRandomData("nodes.db", 1000)
+	cryptoUtils.InsertRandomData("nodes.db", 5000)
 	// Respond to the client
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintln(w, "insert Dummy Data Done")
