@@ -28,6 +28,37 @@ GET http://localhost:8081/database
 
 GET http://localhost:8081/ping
 
-GET http://localhost:8081/shuffleDatabase
+GET http://localhost:80/shuffleDatabase
 
-GET http://localhost:8081/dummy
+GET http://localhost:80/dummy
+
+
+
+
+
+
+
+
+
+
+
+GET https://api.moosend.com/v3/lists.json?apikey=4fe40484-4d1f-478c-b533-8d4e1dbacc3e
+Content-Type: application/json
+
+
+
+
+
+
+
+POST https://api.moosend.com/v3/subscribers/7ca43245-d09e-4425-916a-cf080fa796b2/subscribe_many.json?apikey=4fe40484-4d1f-478c-b533-8d4e1dbacc3e
+Content-Type: application/json
+
+{  
+      "HasExternalDoubleOptIn": false,
+      "Subscribers": [  
+          {
+            "Email": "TheGreatthing@test.com"
+          }
+          ]
+}
