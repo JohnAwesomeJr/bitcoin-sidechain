@@ -359,7 +359,7 @@ func shuffleDatabase(w http.ResponseWriter, r *http.Request) {
 	// cryptoUtils.AssignGroupNumbers("nodes.db", 10)
 	databaseFile := "nodes.db"
 	data, _ := cryptoUtils.GetDataFromDatabase(databaseFile)
-	shuffledData := cryptoUtils.ShuffleResults(data, 00000000000000000000)
+	shuffledData := cryptoUtils.ShuffleResults(data, 159456)
 	orderedData := cryptoUtils.AssignNewOrderBy(shuffledData)
 	groupedData := cryptoUtils.AssignNodeGroups(orderedData, 10)
 	cryptoUtils.UpdateNodesTable(databaseFile, groupedData)
