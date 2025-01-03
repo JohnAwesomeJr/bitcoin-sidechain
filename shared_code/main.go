@@ -359,7 +359,7 @@ func shuffleDatabase(w http.ResponseWriter, r *http.Request) {
 	// cryptoUtils.AssignGroupNumbers("nodes.db", 10)
 	databaseFile := "nodes.db"
 	data, _ := cryptoUtils.GetDataFromDatabase(databaseFile)
-	shuffledData := cryptoUtils.ShuffleResults(data, 159456)
+	shuffledData := cryptoUtils.ShuffleResults(data, 12345)
 	orderedData := cryptoUtils.AssignNewOrderBy(shuffledData)
 	groupedData := cryptoUtils.AssignNodeGroups(orderedData, 10)
 	cryptoUtils.UpdateNodesTable(databaseFile, groupedData)
@@ -370,7 +370,7 @@ func shuffleDatabase(w http.ResponseWriter, r *http.Request) {
 }
 
 func addDummyNodes(w http.ResponseWriter, r *http.Request) {
-	cryptoUtils.InsertRandomData("nodes.db", 100000)
+	cryptoUtils.InsertRandomData("nodes.db", 20000)
 	// Respond to the client
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintln(w, "insert Dummy Data Done")
