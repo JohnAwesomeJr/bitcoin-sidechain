@@ -30,15 +30,15 @@ func main() {
 	http.HandleFunc("/ping", pingHandler)
 
 	// Work In Progress
-	http.HandleFunc("/hashData", hashDatabaseHandler)
 	http.HandleFunc("/makewallet", insertNewWallet)
 	http.HandleFunc("/talkToOtherServer", TalkToOtherServers)
-	http.HandleFunc("/database", serveDatabaseHandler("nodeList1.db"))
+	http.HandleFunc("/database", serveDatabaseHandler("nodes.db"))
 	http.HandleFunc("/downloadData", fileDownloadHandler)
 
 	// internal node functions (not for use as an API endpoint)
 	http.HandleFunc("/shuffleDatabase", shuffleDatabase)
 	http.HandleFunc("/dummy", addDummyNodes)
+	http.HandleFunc("/hashData", hashDatabaseHandler)
 
 	ip := "0.0.0.0"
 	port := "80"
@@ -247,7 +247,7 @@ func pingHandler(w http.ResponseWriter, r *http.Request) {
 
 // Work In Progress
 func hashDatabaseHandler(w http.ResponseWriter, r *http.Request) {
-	dbFilename := filepath.Join(".", "nodeList1.db")
+	dbFilename := filepath.Join(".", "nodes.db")
 	hash := cryptoUtils.ComputeDatabaseHash(dbFilename)
 	response := map[string]string{"hash": hash}
 	w.Header().Set("Content-Type", "application/json")
@@ -355,13 +355,14 @@ func fileDownloadHandler(w http.ResponseWriter, r *http.Request) {
 
 // internal node functions (not for use as an API endpoint)
 func shuffleDatabase(w http.ResponseWriter, r *http.Request) {
-	// cryptoUtils.ShuffleRows("nodes.db", 1)
-	// cryptoUtils.AssignGroupNumbers("nodes.db", 10)
 	databaseFile := "nodes.db"
+	groupSize := 10
+	shuffleSeed := 123640172364
+
 	data, _ := cryptoUtils.GetDataFromDatabase(databaseFile)
-	shuffledData := cryptoUtils.ShuffleResults(data, 12345)
+	shuffledData := cryptoUtils.ShuffleResults(data, int64(shuffleSeed))
 	orderedData := cryptoUtils.AssignNewOrderBy(shuffledData)
-	groupedData := cryptoUtils.AssignNodeGroups(orderedData, 10)
+	groupedData := cryptoUtils.AssignNodeGroups(orderedData, groupSize)
 	cryptoUtils.UpdateNodesTable(databaseFile, groupedData)
 
 	// Respond to the client
