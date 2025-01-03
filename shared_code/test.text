@@ -18,12 +18,12 @@ GET http://localhost/bem
 GET http://localhost/shuffleDatabase
 
 
-POST http://localhost:8081/walletbalance
+POST http://localhost:80/walletbalance
 Content-Type: application/json
 
 {"wallet": "BL3HwS0wlNBFqgv9XdBbd23EPfYDTeh+AYgtMRa7P9VWHyI8O2zzrtBH9ANo5zkf8vpuHrlwI0fSgdAmENvjYs="}
 
-GET http://localhost:8081/database
+GET http://localhost:80/database
 
 
 GET http://localhost:8081/ping
