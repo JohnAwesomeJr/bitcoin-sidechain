@@ -3,6 +3,7 @@ package main
 import (
 	"bitcoin-sidechain/cryptoUtils"
 	"bitcoin-sidechain/networkUtils"
+	"bufio"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -13,10 +14,19 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
 func main() {
+
+	// Load configuration from file
+	config, err := LoadConfig("./config.txt")
+	if err != nil {
+		fmt.Printf("Error loading config: %v\n", err)
+		os.Exit(1)
+	}
+	port := config["PORT"]
 
 	// Front End Pages
 	http.HandleFunc("/", rootHandler)
@@ -41,7 +51,6 @@ func main() {
 	http.HandleFunc("/hashData", hashDatabaseHandler)
 
 	ip := "0.0.0.0"
-	port := "80"
 	address := fmt.Sprintf("%s:%s", ip, port)
 
 	if err := http.ListenAndServe(address, nil); err != nil {
@@ -51,6 +60,43 @@ func main() {
 	time.Sleep(2 * time.Second)
 	fmt.Println("____________Hi All!___________")
 
+}
+
+// LoadConfig reads a configuration file and returns a map of key-value pairs
+func LoadConfig(filename string) (map[string]string, error) {
+	config := make(map[string]string)
+
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+
+		// Skip empty lines and comments
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		// Split key and value
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("invalid line: %s", line)
+		}
+
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+		config[key] = value
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return config, nil
 }
 
 func FetchJSON(url string) (map[string]interface{}, error) {
