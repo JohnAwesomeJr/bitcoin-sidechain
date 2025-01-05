@@ -9,6 +9,7 @@ import (
 	"net"
 	"sort"
 	"strings"
+	"time"
 
 	"golang.org/x/exp/rand"
 )
@@ -18,29 +19,41 @@ func columnsCommaSeparated(columns []string) string {
 	return fmt.Sprintf("%s", strings.Join(columns, ", "))
 }
 
-func GetDataFromDatabase(dbFile string) ([]map[string]interface{}, error) {
-	// Open the SQLite database
-	db, err := sql.Open("sqlite3", dbFile)
+func GetDataFromDatabase() ([]map[string]interface{}, error) {
+	// MySQL connection string (DSN format)
+	dsn := "node:test@tcp(node-1-database:3306)/node" // Modify this with your actual MySQL connection string
+	// Open the MySQL database
+	db, err := sql.Open("mysql", dsn)
 	if err != nil {
-		return nil, err
+		fmt.Println("Error opening database:", err) // Print error to console
+		return nil, fmt.Errorf("failed to open MySQL database with DSN '%s': %w", dsn, err)
 	}
 	defer db.Close()
+
+	// Check if the connection is actually alive (optional but helps diagnose connection issues)
+	if err := db.Ping(); err != nil {
+		fmt.Println("Error pinging database:", err) // Print error to console
+		return nil, fmt.Errorf("failed to ping the MySQL database: %w", err)
+	}
 
 	// Execute a query to retrieve the data
 	rows, err := db.Query("SELECT * FROM nodes ORDER BY computer_id") // Replace with your actual query
 	if err != nil {
-		return nil, err
+		fmt.Println("Error executing query:", err) // Print error to console
+		return nil, fmt.Errorf("failed to execute query 'SELECT * FROM nodes ORDER BY computer_id': %w", err)
 	}
 	defer rows.Close()
 
-	// Prepare to collect the result
+	// Retrieve column names
 	columns, err := rows.Columns()
 	if err != nil {
-		return nil, err
+		fmt.Println("Error retrieving column names:", err) // Print error to console
+		return nil, fmt.Errorf("failed to retrieve column names from the query result: %w", err)
 	}
 
 	var results []map[string]interface{}
 
+	// Iterate through the rows
 	for rows.Next() {
 		// Create a slice of interfaces to hold the column values
 		values := make([]interface{}, len(columns))
@@ -54,7 +67,8 @@ func GetDataFromDatabase(dbFile string) ([]map[string]interface{}, error) {
 		// Scan the row into the valuePointers
 		err := rows.Scan(valuePointers...)
 		if err != nil {
-			return nil, err
+			fmt.Println("Error scanning row:", err) // Print error to console
+			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
 
 		// Create a map to hold the row data
@@ -62,8 +76,10 @@ func GetDataFromDatabase(dbFile string) ([]map[string]interface{}, error) {
 		for i, colName := range columns {
 			val := values[i]
 			if b, ok := val.([]byte); ok {
+				// If the value is a byte slice, convert it to a string
 				rowData[colName] = string(b)
 			} else {
+				// Otherwise, use the value as is
 				rowData[colName] = val
 			}
 		}
@@ -72,13 +88,16 @@ func GetDataFromDatabase(dbFile string) ([]map[string]interface{}, error) {
 		results = append(results, rowData)
 	}
 
-	// Check for errors after the loop
+	// Check for errors after the loop (e.g., if the loop encountered an error)
 	if err := rows.Err(); err != nil {
-		return nil, err
+		fmt.Println("Error iterating through rows:", err) // Print error to console
+		return nil, fmt.Errorf("encountered error while iterating through rows: %w", err)
 	}
 
+	// Return the result data
 	return results, nil
 }
+
 func ShuffleResults(results []map[string]interface{}, seed int64) []map[string]interface{} {
 	// Create a new random source with the provided seed
 	rand.Seed(uint64(seed))
@@ -109,40 +128,82 @@ func AssignNodeGroups(results []map[string]interface{}, groupSize int) []map[str
 	}
 	return results
 }
-func UpdateNodesTable(dbFile string, results []map[string]interface{}) error {
-	// Open the SQLite database
-	db, err := sql.Open("sqlite3", dbFile)
+func UpdateNodesTable(results []map[string]interface{}) error {
+	// MySQL connection string (DSN format)
+	dsn := "node:test@tcp(node-1-database:3306)/node" // Modify this with your actual MySQL connection string
+
+	// Open the MySQL database
+	db, err := sql.Open("mysql", dsn)
 	if err != nil {
-		return err
+		// Print the error to the console and return it
+		fmt.Println("Error opening database:", err)
+		return fmt.Errorf("failed to open MySQL database with DSN '%s': %w", dsn, err)
 	}
 	defer db.Close()
+
+	// Check if the connection is actually alive (optional but helps diagnose connection issues)
+	if err := db.Ping(); err != nil {
+		// Print the error to the console and return it
+		fmt.Println("Error pinging database:", err)
+		return fmt.Errorf("failed to ping the MySQL database: %w", err)
+	}
 
 	// Clear the existing data in the table
 	_, err = db.Exec("DELETE FROM nodes")
 	if err != nil {
-		return err
+		// Print the error to the console and return it
+		fmt.Println("Error deleting existing data:", err)
+		return fmt.Errorf("failed to delete data from 'nodes' table: %w", err)
 	}
 
 	// Prepare the SQL statement for inserting data
 	stmt, err := db.Prepare("INSERT INTO nodes (sort_order, computer_id, ip_address, node_group) VALUES (?, ?, ?, ?)")
 	if err != nil {
-		return err
+		// Print the error to the console and return it
+		fmt.Println("Error preparing SQL statement:", err)
+		return fmt.Errorf("failed to prepare insert statement: %w", err)
 	}
 	defer stmt.Close()
 
 	// Loop through the results and insert each row into the nodes table
 	for _, row := range results {
-		sortOrder := row["order_by"].(int)
-		computerID := row["computer_id"].(string)
-		ipAddress := row["ip_address"].(string)
-		nodeGroup := row["node_group"].(int)
+		sortOrder, ok := row["order_by"].(int)
+		if !ok {
+			errMsg := fmt.Sprintf("expected 'order_by' to be of type int, but got %T", row["order_by"])
+			fmt.Println(errMsg)
+			return fmt.Errorf(errMsg)
+		}
+
+		computerID, ok := row["computer_id"].(string)
+		if !ok {
+			errMsg := fmt.Sprintf("expected 'computer_id' to be of type string, but got %T", row["computer_id"])
+			fmt.Println(errMsg)
+			return fmt.Errorf(errMsg)
+		}
+
+		ipAddress, ok := row["ip_address"].(string)
+		if !ok {
+			errMsg := fmt.Sprintf("expected 'ip_address' to be of type string, but got %T", row["ip_address"])
+			fmt.Println(errMsg)
+			return fmt.Errorf(errMsg)
+		}
+
+		nodeGroup, ok := row["node_group"].(int)
+		if !ok {
+			errMsg := fmt.Sprintf("expected 'node_group' to be of type int, but got %T", row["node_group"])
+			fmt.Println(errMsg)
+			return fmt.Errorf(errMsg)
+		}
 
 		// Execute the insert statement for each row
 		_, err := stmt.Exec(sortOrder, computerID, ipAddress, nodeGroup)
 		if err != nil {
-			return err
+			// Print the error to the console and return it
+			fmt.Println("Error executing insert statement:", err)
+			return fmt.Errorf("failed to execute insert for row '%v': %w", row, err)
 		}
 	}
+	fmt.Println("Shuffle UpdateNodesTable: it worked!!!!!!!")
 
 	return nil
 }
@@ -286,22 +347,38 @@ func ClearNodeGroupColumn(dbPath string) error {
 	return nil
 }
 
-// insertRandomData populates the nodes table with 100,000 rows of random data.
-func InsertRandomData(dbFile string, AmountToInsert int) {
-	rand.Seed(1234) // Seed the random number generator
+func InsertRandomData(AmountToInsert int) {
+	rand.Seed(uint64(time.Now().UnixNano())) // Seed the random number generator
 
-	db, err := sql.Open("sqlite3", dbFile)
+	// MySQL connection string (DSN format)
+	dsn := "node:test@tcp(node-1-database:3306)/node" // Modify this with your actual MySQL connection string
+
+	// Open the MySQL database
+	db, err := sql.Open("mysql", dsn)
 	if err != nil {
-		log.Fatalf("Failed to open database: %v", err)
+		// Print the error to the console and return it
+		fmt.Println("Error opening database:", err)
+		log.Fatalf("Failed to open MySQL database with DSN '%s': %v", dsn, err)
 	}
 	defer db.Close()
 
+	// Check if the connection is alive
+	if err := db.Ping(); err != nil {
+		// Print the error to the console and return it
+		fmt.Println("Error pinging database:", err)
+		log.Fatalf("Failed to ping MySQL database: %v", err)
+	}
+
+	// Prepare the SQL statement for inserting data
 	stmt, err := db.Prepare("INSERT INTO nodes (sort_order, computer_id, ip_address, node_group) VALUES (?, ?, ?, ?)")
 	if err != nil {
-		log.Fatalf("Failed to prepare statement: %v", err)
+		// Print the error to the console and return it
+		fmt.Println("Error preparing statement:", err)
+		log.Fatalf("Failed to prepare SQL insert statement: %v", err)
 	}
 	defer stmt.Close()
 
+	// Loop through the specified number of insertions
 	for i := 0; i < AmountToInsert; i++ {
 		sortOrder := i + 1
 		ipAddress := generateRandomIPAddress()
@@ -310,12 +387,16 @@ func InsertRandomData(dbFile string, AmountToInsert int) {
 		computerID := generateSHA256(ipWithPort)
 		nodeGroup := rand.Intn(10) + 1 // Random node group between 1 and 10
 
+		// Execute the insert statement for each row
 		_, err = stmt.Exec(sortOrder, computerID, ipWithPort, nodeGroup)
 		if err != nil {
-			log.Fatalf("Failed to insert data: %v", err)
+			// Print the error to the console and return it
+			fmt.Println("Error inserting data:", err)
+			log.Fatalf("Failed to insert data for row %d: %v", i+1, err)
 		}
 	}
 
+	// Log the success message
 	log.Printf("Inserted %d rows successfully.", AmountToInsert)
 }
 

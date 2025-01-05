@@ -26,6 +26,8 @@ import (
 	"fmt"
 
 	_ "github.com/mattn/go-sqlite3"
+
+	_ "github.com/go-sql-driver/mysql" // This imports the MySQL driver
 )
 
 func KeyGenRSAOLDSTYLE() {
@@ -367,9 +369,12 @@ func ReorderJSON(jsonStr string) (string, error) {
 	return string(reorderedJSON), nil
 }
 
-func ComputeDatabaseHash(dbFilename string) string {
-	// Open the SQLite database
-	db, err := sql.Open("sqlite3", dbFilename)
+func ComputeDatabaseHash() string {
+	// MySQL connection string (DSN format)
+	dsn := "node:test@tcp(node-1-database:3306)/node" // Modify with your actual MySQL connection string
+
+	// Open the MySQL database
+	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		log.Fatalf("Failed to open database: %v", err)
 	}
@@ -408,24 +413,26 @@ func ComputeDatabaseHash(dbFilename string) string {
 	return hex.EncodeToString(hash[:])
 }
 
-func NewWallet(walletAddress string, databaseFile string) (bool, error) {
+func NewWallet(walletAddress string, dbName string) (bool, error) {
+	// Create the MySQL connection string (Data Source Name)
+	dsn := "node:test@tcp(node-1-database:3306)/node" // Modify this as per your setup
 
-	// Connect to the SQLite database
-	db, err := sql.Open("sqlite3", databaseFile)
+	// Open a connection to the MySQL database
+	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		return false, fmt.Errorf("failed to open database: %w", err)
 	}
 	defer db.Close()
 
 	// Check if wallet already exists
-	var exists bool
+	var exists int
 	err = db.QueryRow("SELECT EXISTS(SELECT 1 FROM wallet_balances WHERE wallet = ?)", walletAddress).Scan(&exists)
 	if err != nil {
 		return false, fmt.Errorf("failed to check wallet existence: %w", err)
 	}
 
 	// If wallet already exists, do nothing
-	if exists {
+	if exists == 1 {
 		fmt.Println("Wallet already exists.")
 		return false, fmt.Errorf("wallet already exists")
 	}
@@ -443,8 +450,11 @@ func NewWallet(walletAddress string, databaseFile string) (bool, error) {
 
 // MoveSats moves an amount from one wallet to another, checking for sufficient balance.
 func MoveSats(fromAddress string, toAddress string, amount string, database string) error {
-	// Open the database connection
-	db, err := sql.Open("sqlite3", database)
+	// MySQL connection string
+	dsn := "node:node@tcp(node-1-database:3306)/" + database // Modify this based on your MySQL setup
+
+	// Open the MySQL database connection
+	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		return fmt.Errorf("failed to open database: %v", err)
 	}
@@ -505,29 +515,35 @@ func MoveSats(fromAddress string, toAddress string, amount string, database stri
 // CheckAndAddNonce opens an SQLite database, checks if a nonce exists in the nonce table,
 // and adds it if it does not exist, then returns false.
 func CheckNonce(dbFileName string, nonce string) (bool, error) {
-	// Open the SQLite database file
-	db, err := sql.Open("sqlite3", dbFileName)
+	// Create the MySQL connection string (Data Source Name)
+	// You should have your DB user, password, host, and database name set as per your configuration
+	dsn := "node:test@tcp(node-1-database:3306)/node" // Modify this as per your setup
+	// Open a connection to the MySQL database
+	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		return false, fmt.Errorf("could not open database: %w", err)
 	}
 	defer db.Close()
+
 	// Prepare the query to check if the nonce exists
 	query := "SELECT EXISTS(SELECT 1 FROM nonce WHERE nonce = ?)"
-	var exists bool
+
+	// Create a variable to hold the result of the query
+	var exists int
 
 	// Execute the query
 	err = db.QueryRow(query, nonce).Scan(&exists)
 	if err != nil {
-		fmt.Println(err)
+		log.Println("Error executing query:", err)
 		return false, fmt.Errorf("query execution failed: %w", err)
 	}
 
-	// If nonce does not exist, insert it into the database
-	if !exists {
+	// If the nonce does not exist, insert it into the database
+	if exists == 0 {
 		insertQuery := "INSERT INTO nonce (nonce) VALUES (?)"
 		_, err = db.Exec(insertQuery, nonce)
 		if err != nil {
-			fmt.Println("failed to insert nonce: %w", err)
+			log.Println("Error inserting nonce:", err)
 			return false, fmt.Errorf("failed to insert nonce: %w", err)
 		}
 		// Return false as per the requirement after adding the nonce

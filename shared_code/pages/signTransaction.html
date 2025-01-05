@@ -200,23 +200,39 @@
                 return;
             }
 
-            // Send the JSON to the endpoint using fetch
-            fetch('http://localhost/verifysignature', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: transactionJson
-            })
-                .then(response => response.json())
-                .then(data => {
-                    // Display the response from the server
-                    document.getElementById('response').textContent = JSON.stringify(data, null, 2);
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('Error sending transaction to endpoint.');
-                });
+// Send the JSON to the endpoint using fetch
+fetch('http://localhost/verifysignature', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json'
+    },
+    body: transactionJson
+})
+    .then(response => response.json())
+    .then(data => {
+        const responseElement = document.getElementById('response');
+
+        // Display the response from the server
+        responseElement.textContent = JSON.stringify(data, null, 2);
+
+        // Set the background color based on the response
+        if (data.message === 'Valid') {
+            responseElement.style.backgroundColor = 'green';
+        } else if (data.message === 'Invalid') {
+            responseElement.style.backgroundColor = 'red';
+        }
+
+        // Trigger fade back to white after a short delay
+        setTimeout(() => {
+            responseElement.style.transition = 'background-color 1.5s ease';
+            responseElement.style.backgroundColor = 'white';
+        }, 500); // Wait 500ms before starting the fade
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error sending transaction to endpoint.');
+        alert(error);
+    });
         }
     </script>
 </body>

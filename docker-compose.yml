@@ -6,7 +6,7 @@ services:
     container_name: node-1
     hostname: node-1
     ports:
-      - "8081:80"
+      - "80:80"
     volumes:
       - ./shared_code:/app
       - ./databases/node-1:/databases
@@ -14,35 +14,25 @@ services:
       my_network:
         aliases:
           - node-1
-
-  # node-2:
-  #   build: .
-  #   container_name: node-2
-  #   hostname: node-2
-  #   ports:
-  #     - "8082:80"
-  #   volumes:
-  #     - ./shared_code:/app
-  #     - ./databases/node-2:/databases
-  #   networks:
-  #     my_network:
-  #       aliases:
-  #         - node-2
-
-  # node-3:
-  #   build: .
-  #   container_name: node-3
-  #   hostname: node-3
-  #   ports:
-  #     - "8083:80"
-  #   volumes:
-  #     - ./shared_code:/app
-  #     - ./databases/node-3:/databases
-  #   networks:
-  #     my_network:
-  #       aliases:
-  #         - node-3
-
+  database:
+    container_name: node-1-database
+    build:
+      context: .
+      dockerfile: Dockerfile-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_DATABASE: node
+      MYSQL_USER: node
+      MYSQL_PASSWORD: test
+      MYSQL_ROOT_PASSWORD: test
+    volumes:
+      - ./dump:/host-machine
+      - ./persistent:/var/lib/mysql
+    networks:
+      my_network:
+        aliases:
+          - node-1-database
 networks:
   my_network:
     driver: bridge

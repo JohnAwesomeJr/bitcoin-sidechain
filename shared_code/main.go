@@ -34,12 +34,12 @@ func main() {
 	http.HandleFunc("/keysGen", keyGenHandler)
 	http.HandleFunc("/balance", walletBalance)
 
-	// API Endpoints
-	http.HandleFunc("/verifysignature", VerifySignatureHandler)
-	http.HandleFunc("/walletbalance", checkWalletBalance)
-	http.HandleFunc("/ping", pingHandler)
+	// API Endpoints ------
 
 	// Work In Progress
+	http.HandleFunc("/ping", pingHandler)
+	http.HandleFunc("/walletbalance", checkWalletBalance)
+	http.HandleFunc("/verifysignature", VerifySignatureHandler)
 	http.HandleFunc("/makewallet", insertNewWallet)
 	http.HandleFunc("/talkToOtherServer", TalkToOtherServers)
 	http.HandleFunc("/database", serveDatabaseHandler("nodes.db"))
@@ -155,7 +155,9 @@ func VerifySignatureHandler(w http.ResponseWriter, r *http.Request) {
 	// Decode the incoming JSON request
 	var req KeySignRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		// Print error to the console
+		fmt.Println("Invalid request payload:", err)
+		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
 	defer r.Body.Close() // Close the request body
@@ -163,7 +165,9 @@ func VerifySignatureHandler(w http.ResponseWriter, r *http.Request) {
 	// Convert the Transaction back to a JSON string
 	transactionJSON, err := json.Marshal(req.Transaction)
 	if err != nil {
-		http.Error(w, "Error converting transaction to JSON", http.StatusInternalServerError)
+		// Print error to the console
+		fmt.Println("Error converting transaction to JSON:", err)
+		http.Error(w, "Error processing request", http.StatusInternalServerError)
 		return
 	}
 
@@ -177,30 +181,59 @@ func VerifySignatureHandler(w http.ResponseWriter, r *http.Request) {
 	message := string(transactionJSON) // The JSON string of the transaction
 
 	// Check if the signature is valid
-	verificationResult, _ := cryptoUtils.VerifySignature(signature, publicKey, message)
+	verificationResult, err := cryptoUtils.VerifySignature(signature, publicKey, message)
+	if err != nil {
+		// Print error to the console
+		fmt.Println("Error verifying signature:", err)
+		http.Error(w, "Error processing request", http.StatusInternalServerError)
+		return
+	}
 
-	// make wallet if it doesn't exists
-	databaseFile := "nodeList1.db"
+	// Make wallet if it doesn't exist (convert to use MySQL)
+	databaseFile := "node-1-database" // Update to use MySQL (use the DSN from your Docker config)
 	nonceValidation, nonceError := cryptoUtils.CheckNonce(databaseFile, nonce)
+	if nonceError != nil {
+		// Print error to the console
+		fmt.Println("Error checking nonce:", nonceError)
+		http.Error(w, "Error processing request", http.StatusInternalServerError)
+		return
+	}
 
-	cryptoUtils.NewWallet(toAddress, databaseFile)
+	// Convert to use MySQL for NewWallet
+	_, walletError := cryptoUtils.NewWallet(toAddress, databaseFile)
+	if walletError != nil {
+		// Print error to the console
+		fmt.Println("Error creating wallet:", walletError)
+		http.Error(w, "Error processing request", http.StatusInternalServerError)
+		return
+	}
 
-	cryptoUtils.MoveSats(publicKey, toAddress, amount, databaseFile)
+	// Convert to use MySQL for MoveSats
+	moveError := cryptoUtils.MoveSats(publicKey, toAddress, amount, databaseFile)
+	if moveError != nil {
+		// Print error to the console
+		fmt.Println("Error moving sats:", moveError)
+		http.Error(w, "Error processing request", http.StatusInternalServerError)
+		return
+	}
 
 	// Create the response object
 	response := map[string]string{}
 	if verificationResult == "valid" && !nonceValidation {
 		response["message"] = "Valid"
 	} else {
+		// Log for debugging
 		fmt.Println("Verification Result:", verificationResult)
-		fmt.Println("Nonce already used", nonceValidation, "nonceError?", nonceError)
+		fmt.Println("Nonce already used:", nonceValidation, "nonceError?", nonceError)
 		response["message"] = "Invalid"
 	}
 
 	// Set the content type and encode the response as JSON
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, "Error encoding response", http.StatusInternalServerError)
+		// Print error to the console
+		fmt.Println("Error encoding response:", err)
+		http.Error(w, "Error processing request", http.StatusInternalServerError)
 		return
 	}
 }
@@ -293,8 +326,7 @@ func pingHandler(w http.ResponseWriter, r *http.Request) {
 
 // Work In Progress
 func hashDatabaseHandler(w http.ResponseWriter, r *http.Request) {
-	dbFilename := filepath.Join(".", "nodes.db")
-	hash := cryptoUtils.ComputeDatabaseHash(dbFilename)
+	hash := cryptoUtils.ComputeDatabaseHash()
 	response := map[string]string{"hash": hash}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
@@ -401,15 +433,14 @@ func fileDownloadHandler(w http.ResponseWriter, r *http.Request) {
 
 // internal node functions (not for use as an API endpoint)
 func shuffleDatabase(w http.ResponseWriter, r *http.Request) {
-	databaseFile := "nodes.db"
-	groupSize := 10
-	shuffleSeed := 123640172364
+	groupSize := 2
+	shuffleSeed := 8574848843759384334
 
-	data, _ := cryptoUtils.GetDataFromDatabase(databaseFile)
+	data, _ := cryptoUtils.GetDataFromDatabase()
 	shuffledData := cryptoUtils.ShuffleResults(data, int64(shuffleSeed))
 	orderedData := cryptoUtils.AssignNewOrderBy(shuffledData)
 	groupedData := cryptoUtils.AssignNodeGroups(orderedData, groupSize)
-	cryptoUtils.UpdateNodesTable(databaseFile, groupedData)
+	cryptoUtils.UpdateNodesTable(groupedData)
 
 	// Respond to the client
 	w.WriteHeader(http.StatusOK)
@@ -417,7 +448,7 @@ func shuffleDatabase(w http.ResponseWriter, r *http.Request) {
 }
 
 func addDummyNodes(w http.ResponseWriter, r *http.Request) {
-	cryptoUtils.InsertRandomData("nodes.db", 20000)
+	cryptoUtils.InsertRandomData(10)
 	// Respond to the client
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintln(w, "insert Dummy Data Done")
