@@ -32,6 +32,13 @@ GET http://localhost:80/shuffleDatabase
 
 GET http://localhost:80/dummy
 
+POST http://localhost:80/addNodeRequest
+
+{"ipaddress":"localhost:80"}
+
+GET http://localhost:80/queData
+
+GET http://localhost:80/syncNodeList
 
 
 

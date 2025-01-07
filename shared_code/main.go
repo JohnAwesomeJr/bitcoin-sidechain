@@ -35,15 +35,18 @@ func main() {
 	http.HandleFunc("/balance", walletBalance)
 
 	// API Endpoints ------
+	http.HandleFunc("/addNodeRequest", addNodeRequest)
+	http.HandleFunc("/ping", pingHandler)
 
 	// Work In Progress
-	http.HandleFunc("/ping", pingHandler)
 	http.HandleFunc("/walletbalance", checkWalletBalance)
 	http.HandleFunc("/verifysignature", VerifySignatureHandler)
 	http.HandleFunc("/makewallet", insertNewWallet)
 	http.HandleFunc("/talkToOtherServer", TalkToOtherServers)
 	http.HandleFunc("/database", serveDatabaseHandler("nodes.db"))
 	http.HandleFunc("/downloadData", fileDownloadHandler)
+	http.HandleFunc("/syncNodeList", syncNodeList)
+	http.HandleFunc("/queData", queData)
 
 	// internal node functions (not for use as an API endpoint)
 	http.HandleFunc("/shuffleDatabase", shuffleDatabase)
@@ -61,6 +64,13 @@ func main() {
 	fmt.Println("____________Hi All!___________")
 
 }
+
+// Copy to a function where you want to simulate a delay.
+// Generate a random duration between 500 ms and 1 second
+// duration := time.Duration(rand.Intn(501)+2000) * time.Millisecond
+// fmt.Printf("Simulating latency of %v...\n", duration)
+// time.Sleep(duration)
+// fmt.Printf("Completed after simulating latency of %v\n", duration)
 
 // LoadConfig reads a configuration file and returns a map of key-value pairs
 func LoadConfig(filename string) (map[string]string, error) {
@@ -448,8 +458,351 @@ func shuffleDatabase(w http.ResponseWriter, r *http.Request) {
 }
 
 func addDummyNodes(w http.ResponseWriter, r *http.Request) {
-	cryptoUtils.InsertRandomData(10)
+	cryptoUtils.InsertRandomData(2)
 	// Respond to the client
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintln(w, "insert Dummy Data Done")
+}
+
+func addNodeRequest(w http.ResponseWriter, r *http.Request) {
+
+	type IncomingRequest struct {
+		IPAddress string `json:"ipaddress"`
+	}
+
+	type Response struct {
+		Message       string `json:"message"`
+		InNodes       bool   `json:"in_nodes"`
+		InNodesQue    bool   `json:"in_nodes_que"`
+		InNodesBuffer bool   `json:"in_nodes_buffer"`
+	}
+
+	type ErrorResponse struct {
+		Message string `json:"message"`
+		Code    int    `json:"code"`
+	}
+
+	// Ensure the method is POST
+	if r.Method != http.MethodPost {
+		http.Error(w, "Only POST requests are allowed", http.StatusMethodNotAllowed)
+		errorResponse := ErrorResponse{
+			Message: "Only POST requests are allowed",
+			Code:    http.StatusMethodNotAllowed,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(errorResponse)
+		return
+	}
+
+	// Parse the incoming JSON request
+	var incoming IncomingRequest
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		errorResponse := ErrorResponse{
+			Message: "Failed to read request body",
+			Code:    http.StatusBadRequest,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(errorResponse)
+		return
+	}
+
+	err = json.Unmarshal(body, &incoming)
+	if err != nil {
+		errorResponse := ErrorResponse{
+			Message: "Invalid JSON format",
+			Code:    http.StatusBadRequest,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(errorResponse)
+		return
+	}
+
+	// Validate the IPAddress field
+	if incoming.IPAddress == "" {
+		errorResponse := ErrorResponse{
+			Message: "IP address is required",
+			Code:    http.StatusBadRequest,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(errorResponse)
+		return
+	}
+
+	// Construct the /ping endpoint URL
+	pingURL := fmt.Sprintf("http://%s/ping", incoming.IPAddress)
+
+	// Perform the GET request to the /ping endpoint
+	resp, err := http.Get(pingURL)
+	if err != nil {
+		errorResponse := ErrorResponse{
+			Message: fmt.Sprintf("Failed to reach %s: %v", pingURL, err),
+			Code:    http.StatusBadGateway,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadGateway)
+		json.NewEncoder(w).Encode(errorResponse)
+		return
+	}
+	defer resp.Body.Close()
+
+	// Database connection setup
+	dsn := "node:test@tcp(node-1-database:3306)/node"
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		errorResponse := ErrorResponse{
+			Message: "Failed to connect to the database",
+			Code:    http.StatusInternalServerError,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(errorResponse)
+		return
+	}
+	defer db.Close()
+
+	// Check the database connection
+	err = db.Ping()
+	if err != nil {
+		errorResponse := ErrorResponse{
+			Message: "Failed to ping the database",
+			Code:    http.StatusInternalServerError,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(errorResponse)
+		return
+	}
+
+	// Variables to track IP presence
+	var inNodes, inNodesQue, inNodesBuffer bool
+	var count int
+
+	// Step 1: Check if the IP is in the nodes table
+	query := `SELECT COUNT(*) FROM nodes WHERE ip_address = ?`
+	err = db.QueryRow(query, incoming.IPAddress).Scan(&count)
+	if err != nil {
+		errorResponse := ErrorResponse{
+			Message: fmt.Sprintf("Error querying the database: %v", err),
+			Code:    http.StatusInternalServerError,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(errorResponse)
+		return
+	}
+	inNodes = count > 0
+
+	// Step 2: If IP is in nodes, return that information
+	if inNodes {
+		response := Response{
+			Message:       "IP is already in the nodes database",
+			InNodes:       true,
+			InNodesQue:    false,
+			InNodesBuffer: false,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+
+	// Step 3: Check if the IP is in the nodes_que table
+	query = `SELECT COUNT(*) FROM nodes_que WHERE ip_address = ?`
+	err = db.QueryRow(query, incoming.IPAddress).Scan(&count)
+	if err != nil {
+		errorResponse := ErrorResponse{
+			Message: fmt.Sprintf("Error querying the database: %v", err),
+			Code:    http.StatusInternalServerError,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(errorResponse)
+		return
+	}
+	inNodesQue = count > 0
+
+	// Step 4: If IP is in nodes_que, return that information
+	if inNodesQue {
+		response := Response{
+			Message:       "IP is already in the nodes queue",
+			InNodes:       false,
+			InNodesQue:    true,
+			InNodesBuffer: false,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+
+	// Step 5: If IP is not in nodes or nodes_que, add it to the nodes_buffer
+	insertQuery := `INSERT INTO nodes_buffer (ip_address) VALUES (?)`
+	_, err = db.Exec(insertQuery, incoming.IPAddress)
+	if err != nil {
+		errorResponse := ErrorResponse{
+			Message: fmt.Sprintf("Failed to add IP to the buffer: %v", err),
+			Code:    http.StatusInternalServerError,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(errorResponse)
+		return
+	}
+
+	// Verify the IP is now in the buffer
+	query = `SELECT COUNT(*) FROM nodes_buffer WHERE ip_address = ?`
+	err = db.QueryRow(query, incoming.IPAddress).Scan(&count)
+	if err != nil {
+		errorResponse := ErrorResponse{
+			Message: fmt.Sprintf("Error verifying IP in buffer: %v", err),
+			Code:    http.StatusInternalServerError,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(errorResponse)
+		return
+	}
+	inNodesBuffer = count > 0
+
+	// Prepare the response
+	response := Response{
+		Message:       "IP successfully added to nodes buffer",
+		InNodes:       false,
+		InNodesQue:    false,
+		InNodesBuffer: inNodesBuffer,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
+}
+
+func syncNodeList(w http.ResponseWriter, r *http.Request) {
+	// Database connection
+	db, err := sql.Open("mysql", "node:test@tcp(node-1-database:3306)/node")
+	if err != nil {
+		http.Error(w, "Failed to connect to database", http.StatusInternalServerError)
+		return
+	}
+	defer db.Close()
+
+	// Step 1: Move data from nodes_buffer to nodes_que
+	_, err = db.Exec("INSERT INTO nodes_que SELECT * FROM nodes_buffer")
+	if err != nil {
+		http.Error(w, "Failed to move data from buffer to queue", http.StatusInternalServerError)
+		return
+	}
+	_, err = db.Exec("DELETE FROM nodes_buffer")
+	if err != nil {
+		http.Error(w, "Failed to clear nodes buffer", http.StatusInternalServerError)
+		return
+	}
+
+	// Step 2: Fetch all nodes from the nodes table
+	nodes, err := db.Query("SELECT ip_address, reachable FROM nodes")
+	if err != nil {
+		http.Error(w, "Failed to fetch nodes", http.StatusInternalServerError)
+		return
+	}
+	defer nodes.Close()
+
+	// Step 3: Ping each node and update reachable status
+	for nodes.Next() {
+		var id int
+		var ipAddress string
+		var reachable bool
+		if err := nodes.Scan(&id, &ipAddress, &reachable); err != nil {
+			continue
+		}
+
+		url := fmt.Sprintf("http://%s/ping", ipAddress)
+		client := http.Client{Timeout: 7 * time.Second}
+		resp, err := client.Get(url)
+		if err != nil {
+			_, _ = db.Exec("UPDATE nodes SET reachable = 0 WHERE id = ?", id)
+			continue
+		}
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusOK {
+			_, _ = db.Exec("UPDATE nodes SET reachable = 1 WHERE id = ?", id)
+		}
+	}
+
+	// Step 4: Fetch reachable nodes
+	reachableNodes, err := db.Query("SELECT ip_address FROM nodes WHERE reachable = 1")
+	if err != nil {
+		http.Error(w, "Failed to fetch reachable nodes", http.StatusInternalServerError)
+		return
+	}
+	defer reachableNodes.Close()
+
+	// Step 5: Request and compare queue data from reachable nodes
+	for reachableNodes.Next() {
+		var ipAddress string
+		reachableNodes.Scan(&ipAddress)
+		url := fmt.Sprintf("http://%s/queData", ipAddress)
+		resp, err := http.Get(url)
+		if err != nil {
+			_, _ = db.Exec("UPDATE nodes SET reachable = 0 WHERE ip_address = ?", ipAddress)
+			continue
+		}
+		var remoteQueue []struct {
+			ID   int    `json:"id"`
+			Data string `json:"data"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&remoteQueue); err == nil {
+			for _, data := range remoteQueue {
+				_, _ = db.Exec("INSERT IGNORE INTO nodes_que (id, data) VALUES (?, ?)", data.ID, data.Data)
+			}
+		}
+		resp.Body.Close()
+	}
+
+	// Step 6: Remove duplicate data from nodes_que
+	// _, err = db.Exec("DELETE t1 FROM nodes_que t1 INNER JOIN nodes_que t2 WHERE t1.id > t2.id AND t1.data = t2.data")
+	// if err != nil {
+	// 	http.Error(w, "Failed to remove duplicate data", http.StatusInternalServerError)
+	// 	return
+	// }
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("Sync complete"))
+}
+
+func queData(w http.ResponseWriter, r *http.Request) {
+	// Database connection
+	db, err := sql.Open("mysql", "node:test@tcp(node-1-database:3306)/node")
+	if err != nil {
+		http.Error(w, "Failed to connect to database", http.StatusInternalServerError)
+		return
+	}
+	defer db.Close()
+
+	// Fetch data from nodes_que table
+	rows, err := db.Query("SELECT ip_address FROM nodes_que")
+	if err != nil {
+		http.Error(w, "Failed to fetch queue data", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var queue []struct {
+		Data string `json:"ip_address"`
+	}
+	for rows.Next() {
+		var data struct {
+			Data string `json:"ip_address"`
+		}
+		if err := rows.Scan(&data.Data); err == nil {
+			queue = append(queue, data)
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(queue)
 }
