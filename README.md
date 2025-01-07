@@ -55,3 +55,9 @@ Current Status
 --------------
 
 This project is still in development and not yet in a finished state. We welcome contributions and feedback from the community to help refine and improve our approach. If you're interested in participating, please
+
+INSTRUCTION FOR MIGRATIONS
+
+- if you are in development and want to create a migration just log back into the database container using the steps above and run this cammand. ```mysqldump -u root -ptest node > /host-machine/schema_dump.sql```
+
+- you can also do the same thing with no data in the tables like this ```mysqldump -u root -ptest --no-data node > /host-machine/schema_dump.sql```
