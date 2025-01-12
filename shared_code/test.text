@@ -26,9 +26,9 @@ Content-Type: application/json
 GET http://localhost:80/database
 
 
-GET http://localhost:8081/ping
+GET http://localhost:8082/ping
 
-GET http://localhost:80/shuffleDatabase
+GET http://localhost:8081/shuffleDatabase
 
 GET http://localhost:80/dummy
 
@@ -38,7 +38,7 @@ POST http://localhost:80/addNodeRequest
 
 GET http://localhost:80/queData
 
-GET http://localhost:80/syncNodeList
+GET http://localhost:8081/syncNodeList
 
 
 

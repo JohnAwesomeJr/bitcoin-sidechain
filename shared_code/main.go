@@ -353,7 +353,7 @@ func TalkToOtherServers(w http.ResponseWriter, r *http.Request) {
 	time.Sleep(5 * time.Second)
 
 	// URL to fetch JSON data from
-	url := "http://node-2/ping"
+	url := "http://node-1/ping"
 	data, err := FetchJSON(url)
 	if err != nil {
 		log.Fatalf("Error fetching JSON: %v", err)
@@ -682,103 +682,146 @@ func addNodeRequest(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-func syncNodeList(w http.ResponseWriter, r *http.Request) {
-	// Database connection
-	db, err := sql.Open("mysql", "node:test@tcp(node-1-database:3306)/node")
-	if err != nil {
-		http.Error(w, "Failed to connect to database", http.StatusInternalServerError)
-		return
-	}
-	defer db.Close()
+// func syncNodeList(w http.ResponseWriter, r *http.Request) {
+// 	// Database connection
+// 	fmt.Println("Attempting to connect to the database...")
+// 	db, err := sql.Open("mysql", "root:test@tcp(node-1-database:3306)/node")
+// 	if err != nil {
+// 		fmt.Println("Error connecting to database:", err)
+// 		http.Error(w, "Failed to connect to database", http.StatusInternalServerError)
+// 		return
+// 	}
+// 	defer db.Close()
+// 	fmt.Println("Database connection established.")
 
-	// Step 1: Move data from nodes_buffer to nodes_que
-	_, err = db.Exec("INSERT INTO nodes_que SELECT * FROM nodes_buffer")
-	if err != nil {
-		http.Error(w, "Failed to move data from buffer to queue", http.StatusInternalServerError)
-		return
-	}
-	_, err = db.Exec("DELETE FROM nodes_buffer")
-	if err != nil {
-		http.Error(w, "Failed to clear nodes buffer", http.StatusInternalServerError)
-		return
-	}
+// 	// Step 1: Move data from nodes_buffer to nodes_que
+// 	fmt.Println("Moving data from nodes_buffer to nodes_que...")
+// 	_, err = db.Exec("INSERT INTO nodes_que SELECT * FROM nodes_buffer")
+// 	if err != nil {
+// 		fmt.Println("Error moving data from nodes_buffer to nodes_que:", err)
+// 		http.Error(w, "Failed to move data from buffer to queue", http.StatusInternalServerError)
+// 		return
+// 	}
+// 	_, err = db.Exec("DELETE FROM nodes_buffer")
+// 	if err != nil {
+// 		fmt.Println("Error clearing nodes_buffer:", err)
+// 		http.Error(w, "Failed to clear nodes buffer", http.StatusInternalServerError)
+// 		return
+// 	}
+// 	fmt.Println("Data successfully moved and buffer cleared.")
 
-	// Step 2: Fetch all nodes from the nodes table
-	nodes, err := db.Query("SELECT ip_address, reachable FROM nodes")
-	if err != nil {
-		http.Error(w, "Failed to fetch nodes", http.StatusInternalServerError)
-		return
-	}
-	defer nodes.Close()
+// 	// Step 2: Fetch all nodes from the nodes table
+// 	fmt.Println("Fetching all nodes from the nodes table...")
+// 	nodes, err := db.Query("SELECT ip_address, reachable FROM nodes")
+// 	if err != nil {
+// 		errorMessage := fmt.Sprintf("SQL Error while fetching nodes: %v", err)
+// 		http.Error(w, errorMessage, http.StatusInternalServerError)
+// 		return
+// 	}
+// 	defer nodes.Close()
 
-	// Step 3: Ping each node and update reachable status
-	for nodes.Next() {
-		var id int
-		var ipAddress string
-		var reachable bool
-		if err := nodes.Scan(&id, &ipAddress, &reachable); err != nil {
-			continue
-		}
+// 	fmt.Println("Nodes fetched successfully.")
 
-		url := fmt.Sprintf("http://%s/ping", ipAddress)
-		client := http.Client{Timeout: 7 * time.Second}
-		resp, err := client.Get(url)
-		if err != nil {
-			_, _ = db.Exec("UPDATE nodes SET reachable = 0 WHERE id = ?", id)
-			continue
-		}
-		resp.Body.Close()
-		if resp.StatusCode == http.StatusOK {
-			_, _ = db.Exec("UPDATE nodes SET reachable = 1 WHERE id = ?", id)
-		}
-	}
+// 	// Step 3: Ping each node and update reachable status
+// 	fmt.Println("Pinging nodes and updating reachable status...")
+// 	for nodes.Next() {
+// 		var id int
+// 		var ipAddress string
+// 		var reachable bool
+// 		if err := nodes.Scan(&id, &ipAddress, &reachable); err != nil {
+// 			fmt.Println("Error scanning node record:", err)
+// 			continue
+// 		}
 
-	// Step 4: Fetch reachable nodes
-	reachableNodes, err := db.Query("SELECT ip_address FROM nodes WHERE reachable = 1")
-	if err != nil {
-		http.Error(w, "Failed to fetch reachable nodes", http.StatusInternalServerError)
-		return
-	}
-	defer reachableNodes.Close()
+// 		url := fmt.Sprintf("http://%s/ping", ipAddress)
+// 		fmt.Printf("Pinging node %s...\n", ipAddress)
+// 		client := http.Client{Timeout: 7 * time.Second}
+// 		resp, err := client.Get(url)
+// 		if err != nil {
+// 			fmt.Printf("Node %s is unreachable. Error: %v\n", ipAddress, err)
+// 			_, updateErr := db.Exec("UPDATE nodes SET reachable = 0 WHERE id = ?", id)
+// 			if updateErr != nil {
+// 				fmt.Println("Error updating reachable status to 0:", updateErr)
+// 			}
+// 			continue
+// 		}
+// 		resp.Body.Close()
+// 		if resp.StatusCode == http.StatusOK {
+// 			fmt.Printf("Node %s is reachable.\n", ipAddress)
+// 			_, updateErr := db.Exec("UPDATE nodes SET reachable = 1 WHERE id = ?", id)
+// 			if updateErr != nil {
+// 				fmt.Println("Error updating reachable status to 1:", updateErr)
+// 			}
+// 		}
+// 	}
+// 	fmt.Println("Node reachability updated.")
 
-	// Step 5: Request and compare queue data from reachable nodes
-	for reachableNodes.Next() {
-		var ipAddress string
-		reachableNodes.Scan(&ipAddress)
-		url := fmt.Sprintf("http://%s/queData", ipAddress)
-		resp, err := http.Get(url)
-		if err != nil {
-			_, _ = db.Exec("UPDATE nodes SET reachable = 0 WHERE ip_address = ?", ipAddress)
-			continue
-		}
-		var remoteQueue []struct {
-			ID   int    `json:"id"`
-			Data string `json:"data"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&remoteQueue); err == nil {
-			for _, data := range remoteQueue {
-				_, _ = db.Exec("INSERT IGNORE INTO nodes_que (id, data) VALUES (?, ?)", data.ID, data.Data)
-			}
-		}
-		resp.Body.Close()
-	}
+// 	// Step 4: Fetch reachable nodes
+// 	fmt.Println("Fetching reachable nodes...")
+// 	reachableNodes, err := db.Query("SELECT ip_address FROM nodes WHERE reachable = 1")
+// 	if err != nil {
+// 		fmt.Println("Error fetching reachable nodes:", err)
+// 		http.Error(w, "Failed to fetch reachable nodes", http.StatusInternalServerError)
+// 		return
+// 	}
+// 	defer reachableNodes.Close()
+// 	fmt.Println("Reachable nodes fetched successfully.")
 
-	// Step 6: Remove duplicate data from nodes_que
-	// _, err = db.Exec("DELETE t1 FROM nodes_que t1 INNER JOIN nodes_que t2 WHERE t1.id > t2.id AND t1.data = t2.data")
-	// if err != nil {
-	// 	http.Error(w, "Failed to remove duplicate data", http.StatusInternalServerError)
-	// 	return
-	// }
+// 	// Step 5: Request and compare queue data from reachable nodes
+// 	fmt.Println("Requesting and comparing queue data from reachable nodes...")
+// 	for reachableNodes.Next() {
+// 		var ipAddress string
+// 		reachableNodes.Scan(&ipAddress)
+// 		fmt.Printf("Requesting queue data from node %s...\n", ipAddress)
+// 		url := fmt.Sprintf("http://%s/queData", ipAddress)
+// 		resp, err := http.Get(url)
+// 		if err != nil {
+// 			fmt.Printf("Error fetching queue data from node %s: %v\n", ipAddress, err)
+// 			_, updateErr := db.Exec("UPDATE nodes SET reachable = 0 WHERE ip_address = ?", ipAddress)
+// 			if updateErr != nil {
+// 				fmt.Println("Error updating reachable status to 0 for node:", updateErr)
+// 			}
+// 			continue
+// 		}
+// 		var remoteQueue []struct {
+// 			Data string `json:"ip_address"`
+// 		}
+// 		if err := json.NewDecoder(resp.Body).Decode(&remoteQueue); err != nil {
+// 			fmt.Printf("Error decoding queue data from node %s: %v\n", ipAddress, err)
+// 			resp.Body.Close()
+// 			continue
+// 		}
+// 		resp.Body.Close()
+// 		for _, data := range remoteQueue {
+// 			_, insertErr := db.Exec("INSERT IGNORE INTO nodes_que (ip_address) VALUES (?)", data.Data)
+// 			if insertErr != nil {
+// 				fmt.Printf("Error inserting data into nodes_que for node %s: %v\n", ipAddress, insertErr)
+// 			}
+// 		}
+// 	}
+// 	fmt.Println("Queue data comparison complete.")
 
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Sync complete"))
-}
+// 	// // Step 6: Remove duplicate data from nodes_que
+// 	// fmt.Println("Removing duplicate data from nodes_que...")
+// 	// _, err = db.Exec("DELETE t1 FROM nodes_que t1 INNER JOIN nodes_que t2 WHERE t1.id > t2.id AND t1.data = t2.data")
+// 	// if err != nil {
+// 	// 	fmt.Println("Error removing duplicate data:", err)
+// 	// 	http.Error(w, "Failed to remove duplicate data", http.StatusInternalServerError)
+// 	// 	return
+// 	// }
+// 	// fmt.Println("Duplicate data removed successfully.")
+
+// 	w.WriteHeader(http.StatusOK)
+// 	w.Write([]byte("Sync complete"))
+// 	fmt.Println("Sync operation completed successfully.")
+// }
 
 func queData(w http.ResponseWriter, r *http.Request) {
 	// Database connection
 	db, err := sql.Open("mysql", "node:test@tcp(node-1-database:3306)/node")
 	if err != nil {
 		http.Error(w, "Failed to connect to database", http.StatusInternalServerError)
+		log.Printf("Database connection error: %v", err)
 		return
 	}
 	defer db.Close()
@@ -787,22 +830,283 @@ func queData(w http.ResponseWriter, r *http.Request) {
 	rows, err := db.Query("SELECT ip_address FROM nodes_que")
 	if err != nil {
 		http.Error(w, "Failed to fetch queue data", http.StatusInternalServerError)
+		log.Printf("Error fetching queue data: %v", err)
 		return
 	}
 	defer rows.Close()
 
 	var queue []struct {
-		Data string `json:"ip_address"`
+		IPAddress string `json:"ip_address"`
 	}
 	for rows.Next() {
 		var data struct {
-			Data string `json:"ip_address"`
+			IPAddress string `json:"ip_address"`
 		}
-		if err := rows.Scan(&data.Data); err == nil {
-			queue = append(queue, data)
+		if err := rows.Scan(&data.IPAddress); err != nil {
+			log.Printf("Error scanning row: %v", err)
+			continue
 		}
+		queue = append(queue, data)
+	}
+	if err := rows.Err(); err != nil {
+		http.Error(w, "Error iterating rows", http.StatusInternalServerError)
+		log.Printf("Row iteration error: %v", err)
+		return
 	}
 
+	// Set Content-Type and encode response
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(queue)
+	if err := json.NewEncoder(w).Encode(queue); err != nil {
+		http.Error(w, "Failed to encode JSON response", http.StatusInternalServerError)
+		log.Printf("JSON encoding error: %v", err)
+	}
+}
+
+// -------------------------------------------------------
+func connectToDatabase() (*sql.DB, error) {
+	fmt.Println("Attempting to connect to the database...")
+	db, err := sql.Open("mysql", "root:test@tcp(node-1-database:3306)/node")
+	if err != nil {
+		fmt.Println("Error connecting to database:", err)
+		return nil, err
+	}
+	fmt.Println("Database connection established.")
+	return db, nil
+}
+
+func moveDataToQueue(db *sql.DB) error {
+	fmt.Println("Moving data from nodes_buffer to nodes_que...")
+	_, err := db.Exec("INSERT INTO nodes_que SELECT * FROM nodes_buffer")
+	if err != nil {
+		return fmt.Errorf("error moving data from nodes_buffer to nodes_que: %v", err)
+	}
+	_, err = db.Exec("DELETE FROM nodes_buffer")
+	if err != nil {
+		return fmt.Errorf("error clearing nodes_buffer: %v", err)
+	}
+	fmt.Println("Data successfully moved and buffer cleared.")
+	return nil
+}
+
+func fetchNodes(db *sql.DB) (*sql.Rows, error) {
+	fmt.Println("Fetching all nodes from the nodes table...")
+	nodes, err := db.Query("SELECT ip_address, reachable FROM nodes")
+	if err != nil {
+		return nil, fmt.Errorf("error fetching nodes: %v", err)
+	}
+	fmt.Println("Nodes fetched successfully.")
+	return nodes, nil
+}
+
+func pingNode(db *sql.DB, id int, ipAddress string) {
+	url := fmt.Sprintf("http://%s/ping", ipAddress)
+	fmt.Printf("Pinging node %s...\n", ipAddress)
+	client := http.Client{Timeout: 7 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		fmt.Printf("Node %s is unreachable. Error: %v\n", ipAddress, err)
+		db.Exec("UPDATE nodes SET reachable = 0 WHERE id = ?", id)
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusOK {
+		fmt.Printf("Node %s is reachable.\n", ipAddress)
+		db.Exec("UPDATE nodes SET reachable = 1 WHERE id = ?", id)
+	}
+}
+
+func updateReachableNodes(db *sql.DB) error {
+	nodes, err := fetchNodes(db)
+	if err != nil {
+		return err
+	}
+	defer nodes.Close()
+	fmt.Println("Pinging nodes and updating reachable status...")
+	for nodes.Next() {
+		var id int
+		var ipAddress string
+		var reachable bool
+		if err := nodes.Scan(&id, &ipAddress, &reachable); err != nil {
+			fmt.Println("Error scanning node record:", err)
+			continue
+		}
+		pingNode(db, id, ipAddress)
+	}
+	fmt.Println("Node reachability updated.")
+	return nil
+}
+
+func fetchReachableNodes(db *sql.DB) (*sql.Rows, error) {
+	fmt.Println("Fetching reachable nodes...")
+	nodes, err := db.Query("SELECT ip_address FROM nodes WHERE reachable = 1")
+	if err != nil {
+		return nil, fmt.Errorf("error fetching reachable nodes: %v", err)
+	}
+	fmt.Println("Reachable nodes fetched successfully.")
+	return nodes, nil
+}
+
+func syncQueueData(db *sql.DB, ipAddress string) {
+	url := fmt.Sprintf("http://%s/queData", ipAddress)
+	fmt.Printf("Requesting queue data from node %s...\n", ipAddress)
+	resp, err := http.Get(url)
+	if err != nil {
+		fmt.Printf("Error fetching queue data from node %s: %v\n", ipAddress, err)
+		db.Exec("UPDATE nodes SET reachable = 0 WHERE ip_address = ?", ipAddress)
+		return
+	}
+	defer resp.Body.Close()
+	var remoteQueue []struct {
+		Data string `json:"ip_address"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&remoteQueue); err != nil {
+		fmt.Printf("Error decoding queue data from node %s: %v\n", ipAddress, err)
+		return
+	}
+	for _, data := range remoteQueue {
+		_, insertErr := db.Exec("INSERT IGNORE INTO nodes_que (ip_address) VALUES (?)", data.Data)
+		if insertErr != nil {
+			fmt.Printf("Error inserting data into nodes_que for node %s: %v\n", ipAddress, insertErr)
+		}
+	}
+}
+
+func requestQueueDataFromNodes(db *sql.DB) error {
+	reachableNodes, err := fetchReachableNodes(db)
+	if err != nil {
+		return err
+	}
+	defer reachableNodes.Close()
+	fmt.Println("Requesting and comparing queue data from reachable nodes...")
+	for reachableNodes.Next() {
+		var ipAddress string
+		reachableNodes.Scan(&ipAddress)
+		syncQueueData(db, ipAddress)
+	}
+	fmt.Println("Queue data comparison complete.")
+	return nil
+}
+
+func syncNodeListOLD(w http.ResponseWriter, r *http.Request) {
+	db, err := connectToDatabase()
+	if err != nil {
+		http.Error(w, "Failed to connect to database", http.StatusInternalServerError)
+		return
+	}
+	defer db.Close()
+
+	if err := moveDataToQueue(db); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if err := updateReachableNodes(db); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if err := requestQueueDataFromNodes(db); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("Sync complete"))
+	fmt.Println("Sync operation completed successfully.")
+}
+
+// --------------------------------------------------------------------
+func pullQueFromEndpoint(ipAddress string) {
+	// Define the endpoint
+	urlpart1 := "http://"
+	urlpart2 := "/queData"
+
+	url := urlpart1 + ipAddress + urlpart2
+
+	// Make the GET request to the endpoint
+	resp, err := http.Get(url)
+	if err != nil {
+		log.Printf("Error fetching data from %s: %v", url, err)
+		return
+	}
+	defer resp.Body.Close()
+
+	// Read the response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("Error reading response body: %v", err)
+		return
+	}
+
+	// Check if the response is valid JSON array
+	var nodes []map[string]interface{} // Use a slice of maps to represent the JSON array
+	if err := json.Unmarshal(body, &nodes); err != nil {
+		log.Printf("Error unmarshalling JSON: %v", err)
+		return
+	}
+
+	// Connect to the MySQL database
+	dsn := "root:test@tcp(node-1-database:3306)/node"
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		log.Printf("Error connecting to the database: %v", err)
+		return
+	}
+	defer db.Close()
+
+	// Prepare the insert statement
+	stmt, err := db.Prepare("INSERT INTO `nodes_que` (ip_address) VALUES (?)")
+	if err != nil {
+		log.Printf("Error preparing the insert statement: %v", err)
+		return
+	}
+	defer stmt.Close()
+
+	// Iterate through the nodes and insert the ip_address into the database
+	for _, node := range nodes {
+		ipAddress, ok := node["ip_address"].(string)
+		if !ok {
+			log.Printf("Skipping invalid ip_address: %v", node["ip_address"])
+			continue
+		}
+
+		_, err := stmt.Exec(ipAddress)
+		if err != nil {
+			log.Printf("Error inserting ip_address %s: %v", ipAddress, err)
+			continue
+		}
+	}
+}
+
+func syncNodeList(w http.ResponseWriter, r *http.Request) {
+	// Replace with your database connection details
+	dsn := "root:test@tcp(node-1-database:3306)/node"
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	rows, err := db.Query("SELECT ip_address FROM nodes")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rows.Close()
+
+	// Iterate through rows and process each IP address
+	for rows.Next() {
+		var ipAddress string
+		if err := rows.Scan(&ipAddress); err != nil {
+			log.Fatal(err)
+		}
+		log.Println(ipAddress)
+
+		// Call the pullQueFromEndpoint function with the ip_address
+		pullQueFromEndpoint(ipAddress)
+	}
+
+	// Check for any errors after iterating
+	if err := rows.Err(); err != nil {
+		log.Fatal(err)
+	}
 }

@@ -6,12 +6,15 @@ services:
     container_name: node-1
     hostname: node-1
     ports:
-      - "80:80"
+      - "8081:80"
     volumes:
       - ./shared_code:/app
       - ./databases/node-1:/databases
     networks:
-      my_network:
+      node-1-network:
+        aliases:
+          - node-1
+      shared_network:
         aliases:
           - node-1
   database:
@@ -20,7 +23,7 @@ services:
       context: .
       dockerfile: Dockerfile-mysql
     ports:
-      - "3306:3306"
+      - "3301:3306"
     environment:
       MYSQL_DATABASE: node
       MYSQL_USER: node
@@ -30,9 +33,13 @@ services:
       - ./dump:/host-machine
       - ./persistent:/var/lib/mysql
     networks:
-      my_network:
+      node-1-network:
         aliases:
           - node-1-database
+
 networks:
-  my_network:
+  node-1-network:
+    name: node-1-network
     driver: bridge
+  shared_network:
+    external: true
