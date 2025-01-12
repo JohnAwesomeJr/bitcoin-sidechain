@@ -39,6 +39,7 @@ CREATE TABLE `nodes` (
 
 LOCK TABLES `nodes` WRITE;
 /*!40000 ALTER TABLE `nodes` DISABLE KEYS */;
+INSERT INTO `nodes` VALUES (2,'253d5ec31c51ef0df170411b0388da4f13348a00f4533daad54cd5375c490bf2','suck:80',1,1),(3,'4beef430d0b8b4b1c1b806f643fcb6530a295b38129847ac120c826e93e86df9','sucking2:80',2,1),(4,'akdfkasbvkajsbv','node-2:80',3,1);
 /*!40000 ALTER TABLE `nodes` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -85,6 +86,7 @@ CREATE TABLE `nodes_que` (
 
 LOCK TABLES `nodes_que` WRITE;
 /*!40000 ALTER TABLE `nodes_que` DISABLE KEYS */;
+INSERT INTO `nodes_que` VALUES ('192.168.1.1:80'),('2'),('big man'),('big man 2'),('bills are good'),('bitcoin to 1m'),('I think its great'),('I will have $100000 dollars'),('JJ\'s time is now!'),('mike is cool'),('test');
 /*!40000 ALTER TABLE `nodes_que` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -146,4 +148,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2025-01-07  2:47:24
+-- Dump completed on 2025-01-12  6:24:11
